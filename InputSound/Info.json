@@ -1,0 +1,13 @@
+{
+  "Id": "InputSound",
+  "DisplayName": "Input Sound",
+  "Author": "Eigen",
+  "Version": "0.0.1",
+  "ManagerVersion": "0.32.4",
+  "GameVersion": "2.9.7",
+  "Requirements": [],
+  "LoadAfter": [],
+  "AssemblyName": "InputSound.dll",
+  "EntryMethod": "InputSound.Main.Load",
+  "Repository": ""
+}
