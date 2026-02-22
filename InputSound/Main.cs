@@ -28,6 +28,12 @@ namespace InputSound
     public class SkyHookManagerPatch
     {
 
+        static void PlayHitSound()
+        {
+            var scrCondIns = scrConductor.instance;
+            AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
+        }
+
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
         public static async void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
         {
@@ -36,8 +42,10 @@ namespace InputSound
                 if (ev.Type != SkyHook.EventType.KeyPressed)
                     return;
 
-                var srcCondIns = scrConductor.instance;
-                AudioManager.Play("snd" + srcCondIns.hitSound, 0, srcCondIns.hitSoundGroup, srcCondIns.hitSoundVolume, 10);
+                if (scrController.instance.paused)
+                    return;
+
+                PlayHitSound();
             });
         }
     }
