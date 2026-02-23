@@ -95,8 +95,6 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>start XCOPY /Y /R "$(TargetDir)\Info.json" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\Info.json*"
-start XCOPY /Y /R "$(TargetDir)\$(TargetFileName)" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\$(ProjectName).dll*"
-start powershell compress-archive -force "$(TargetDir)\Info.json","$(TargetDir)\$(TargetFileName)",$(SolutionDir)\LICENSE InputSound.zip</PostBuildEvent>
+    <PostBuildEvent>start powershell compress-archive -force "$(TargetDir)\Info.json","$(TargetDir)\$(TargetFileName)",$(SolutionDir)\LICENSE InputSound.zip</PostBuildEvent>
   </PropertyGroup>
 </Project>
