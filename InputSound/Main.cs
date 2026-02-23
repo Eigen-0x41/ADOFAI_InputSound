@@ -2,6 +2,7 @@
 using SkyHook;
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using UnityModManagerNet;
 
@@ -27,26 +28,25 @@ namespace InputSound
     [HarmonyPatch(typeof(SkyHookManager))]
     public class SkyHookManagerPatch
     {
-
-        static void PlayHitSound()
-        {
-            var scrCondIns = scrConductor.instance;
-            AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
-        }
-
-        [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
-        public static async void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
+        private static async void PlayHitSoundAsync()
         {
             await Task.Run(() =>
             {
-                if (ev.Type != SkyHook.EventType.KeyPressed)
-                    return;
-
                 if (scrController.instance.paused)
                     return;
 
-                PlayHitSound();
+                var scrCondIns = scrConductor.instance;
+                AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
             });
+        }
+
+        [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
+        public static void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
+        {
+            if (ev.Type != SkyHook.EventType.KeyPressed)
+                return;
+
+            PlayHitSoundAsync();
         }
     }
 
