@@ -28,25 +28,28 @@ namespace InputSound
     [HarmonyPatch(typeof(SkyHookManager))]
     public class SkyHookManagerPatch
     {
-        private static async void PlayHitSoundAsync()
-        {
-            await Task.Run(() =>
-            {
-                if (scrController.instance.paused)
-                    return;
-
-                var scrCondIns = scrConductor.instance;
-                AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
-            });
-        }
-
-        [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
-        public static void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
+        private static async Task PlayHitSoundAsync(SkyHookEvent ev)
         {
             if (ev.Type != SkyHook.EventType.KeyPressed)
                 return;
 
-            PlayHitSoundAsync();
+            if (scrController.instance.paused)
+                return;
+
+            var scrCondIns = scrConductor.instance;
+            AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
+        }
+
+        [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
+        public static void HookCallbackPrefix(ref Task __state, SkyHookManager __instance, SkyHookEvent ev)
+        {
+            __state = PlayHitSoundAsync(ev);
+        }
+
+        [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPostfix]
+        public static async void HookCallbackPostfix(Task __state)
+        {
+            await __state;
         }
     }
 
