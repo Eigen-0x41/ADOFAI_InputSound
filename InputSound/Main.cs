@@ -3,6 +3,7 @@ using SkyHook;
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityModManagerNet;
 
@@ -28,28 +29,26 @@ namespace InputSound
     [HarmonyPatch(typeof(SkyHookManager))]
     public class SkyHookManagerPatch
     {
-        private static async Task PlayHitSoundAsync(SkyHookEvent ev)
+        private static void PlayHitSound()
         {
-            if (ev.Type != SkyHook.EventType.KeyPressed)
-                return;
-
-            if (scrController.instance.paused)
-                return;
-
             var scrCondIns = scrConductor.instance;
+            if (scrCondIns == null) return;
             AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
         }
 
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
-        public static void HookCallbackPrefix(ref Task __state, SkyHookManager __instance, SkyHookEvent ev)
+        public static void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
         {
-            __state = PlayHitSoundAsync(ev);
-        }
+            if (ev.Type != SkyHook.EventType.KeyPressed)
+                return;
 
-        [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPostfix]
-        public static async void HookCallbackPostfix(Task __state)
-        {
-            await __state;
+            var srcControllerInstance = scrController.instance;
+            if (srcControllerInstance == null)
+                return;
+            if (srcControllerInstance.paused)
+                return;
+
+            Task.Run(() => PlayHitSound());
         }
     }
 
