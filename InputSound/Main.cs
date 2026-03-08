@@ -5,12 +5,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Audio;
-using UnityEngine.Rendering;
 using UnityModManagerNet;
 
 namespace InputSound
@@ -29,7 +26,6 @@ namespace InputSound
         {
             var harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
-            scrConductorPatch.HitSoundsDataPatch.LoadMannual(modEntry, harmony);
 
             Logger = modEntry.Logger;
 
@@ -40,13 +36,14 @@ namespace InputSound
     }
 
     [HarmonyPatch(typeof(SkyHookManager))]
-    public class SkyHookManagerPatch
+    internal class SkyHookManagerPatch
     {
-        private static void PlayHitSound()
+        private static void PlayHitSound(bool isKeyReleased)
         {
             try
             {
-                AudioManagerPatch.UpdateToLatest();
+                if (isKeyReleased && !AudioManagerPatch.UpdateAndDoReleaseHitSound())
+                    return;
 
                 var audSrc = AudioManagerPatch.CurrentHitSound;
                 if (audSrc == null)
@@ -64,24 +61,22 @@ namespace InputSound
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
         private static void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
         {
-            if (ev.Type != SkyHook.EventType.KeyPressed)
-                return;
-
             var srcControllerInstance = scrController.instance;
             if (srcControllerInstance == null)
                 return;
             if (srcControllerInstance.paused)
                 return;
 
-            Task.Run(() => PlayHitSound());
+            Task.Run(() => PlayHitSound(ev.Type == SkyHook.EventType.KeyReleased));
         }
     }
 
     [HarmonyPatch(typeof(AudioManager))]
-    public class AudioManagerPatch
+    internal class AudioManagerPatch
     {
-        public static AudioSource CurrentHitSound => (currentDelay != double.MaxValue) ? hitSoundBuffer.First().Value : null;
-        private static double currentDelay => (hitSoundBuffer.Count > 0) ? hitSoundBuffer.First().Key : double.MaxValue;
+        public static AudioSource CurrentHitSound => (hitSoundBuffer.Count > 0) ? hitSoundBuffer.Values[0] : null;
+        private static double currentDelay => (hitSoundBuffer.Count > 0) ? hitSoundBuffer.Keys[0] : double.MaxValue;
+        private static double previousDelay = double.MaxValue;
 
         private static SortedList<double, AudioSource> hitSoundBuffer = new SortedList<double, AudioSource>();
 
@@ -90,18 +85,20 @@ namespace InputSound
         [HarmonyPatch(nameof(AudioManager.Play), new Type[] { typeof(string), typeof(double), typeof(AudioMixerGroup), typeof(float), typeof(int) }), HarmonyPrefix]
         private static bool HookCallbackPrefix(string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
+            // ノーツ音ではないヒットサウンドの検出用。
+            // ADOFAI本体にハードコードされています。
+            if (priority == 10)
+                return true;
+
             var __instance = AudioManager.Instance;
 
             AudioSource audioSource = __instance.MakeSource(snd, 0);
             audioSource.pitch = 1f;
+
             if (group != null)
-            {
                 audioSource.outputAudioMixerGroup = group;
-            }
             else
-            {
                 audioSource.outputAudioMixerGroup = __instance.fallbackMixerGroup;
-            }
 
             audioSource.volume = volume;
             audioSource.priority = priority;
@@ -113,36 +110,40 @@ namespace InputSound
             return false;
         }
 
-        public static void UpdateToLatest()
+        public static bool UpdateAndDoReleaseHitSound()
         {
-            double dspTime = scrConductor.instance.dspTime - 0.03125;
-            while (currentDelay < dspTime)
+            var scrCondIns = scrConductor.instance;
+            double dspTime = scrCondIns.dspTime;
+            while (dspTime > currentDelay)
             {
                 Main.DebugPrinting($"HookCallback: [Operation: delete], {currentDelay}, {dspTime}");
+                previousDelay = currentDelay;
                 hitSoundBuffer.Remove(currentDelay);
             }
+
+            return scrConductorPatch.DoReleaseHitSound(dspTime, previousDelay, currentDelay);
         }
     }
 
     [HarmonyPatch(typeof(scrConductor))]
-    public class scrConductorPatch
+    internal class scrConductorPatch
     {
-        public class HitSoundsDataPatch
-        {
-            public static void LoadMannual(in UnityModManager.ModEntry modEntry, Harmony harmony)
-            {
-                // var Asembly = Assembly.GetAssembly(typeof(scrConductor));
-                // var mOriginal = AccessTools.Constructor(Asembly.GetType($"{nameof(scrConductor)}+HitSoundsData"), new Type[] { typeof(HitSound), typeof(double), typeof(float) });
-                // modEntry.Logger.Log($"Original: {mOriginal}");
-                // var mPrefix = AccessTools.Method(typeof(HitSoundsDataPatch), "HitSoundsDataPrefix");
-                // modEntry.Logger.Log($"Prefix  : {mPrefix}");
-                // harmony.Patch(mOriginal, new HarmonyMethod(mPrefix));
-            }
+        private static double currentDelay => (keyReleaseSoundSet.Count > 0) ? keyReleaseSoundSet.First() : double.MaxValue;
 
-            private static void HitSoundsDataPrefix(HitSound hitSound, double time, ref float volume)
-            {
-                volume = 0.0f;
-            }
+        private static SortedSet<double> keyReleaseSoundSet = new SortedSet<double>();
+
+        public static bool DoReleaseHitSound(double dspTime, double previousDelay, double currentPlaingDelay)
+        {
+            while (dspTime > currentDelay)
+                keyReleaseSoundSet.Remove(currentDelay);
+
+            return (previousDelay < currentDelay) && (currentDelay < currentPlaingDelay);
+        }
+
+        [HarmonyPatch(nameof(scrConductor.PlayWithEndTime), new Type[] { typeof(string), typeof(double), typeof(double), typeof(float), typeof(int) }), HarmonyPrefix]
+        private static void PlayWithEndTimePrefix(string snd, double time, double endTime, float volume = 1f, int priority = 128)
+        {
+            keyReleaseSoundSet.Add(endTime);
         }
     }
 }
