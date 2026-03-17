@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,6 +49,43 @@ namespace InputSound
             return true;
         }
 
+        private long interLockRunningUpdate = 0;
+        private async void UpdateLatest()
+        {
+            const long NOT_RUNNING_UPDATE_LATEST = 0;
+            const long RUNNING_UPDATE_LATEST = 1;
+
+            if (Interlocked.Exchange(ref interLockRunningUpdate, RUNNING_UPDATE_LATEST) == RUNNING_UPDATE_LATEST)
+                return;
+
+            double dspTime = scrConductor.instance.dspTime - 8.0;
+            await Task.Run(() =>
+                {
+                    while (hitSoundBuffer.Count > 0)
+                    {
+                        double targetDelay = hitSoundBuffer.Keys.First();
+                        if (dspTime > targetDelay)
+                        {
+                            hitSoundBuffer.Remove(targetDelay);
+                            continue;
+                        }
+                        break;
+                    }
+
+                    while (keyReleaseDelay.Count > 0)
+                    {
+                        double targetDelay = keyReleaseDelay.First();
+                        if (dspTime > targetDelay)
+                        {
+                            keyReleaseDelay.Remove(targetDelay);
+                            continue;
+                        }
+                        break;
+                    }
+
+                    Interlocked.Exchange(ref interLockRunningUpdate, NOT_RUNNING_UPDATE_LATEST);
+                });
+        }
         public void EnrollHitSound(string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
             int additionalPriority = GenAdditionalPriority(snd, priority);
@@ -56,7 +94,7 @@ namespace InputSound
 
                 var __instance = AudioManager.Instance;
 
-                AudioSource audioSource = __instance.MakeSource(snd, 0);
+                AudioSource audioSource = __instance.MakeSource(snd);
                 audioSource.pitch = 1f;
 
                 if (group != null)
@@ -69,7 +107,6 @@ namespace InputSound
                 float num = (audioSource.clip ? audioSource.clip.length : float.PositiveInfinity);
 
                 hitSoundBuffer[time] = new AudioSourceInfomation(audioSource, additionalPriority);
-
             }
 
             UpdateLatest();
@@ -80,57 +117,17 @@ namespace InputSound
             UpdateLatest();
         }
 
-        private long interLockRunningUpdate = 0;
-        private async void UpdateLatest()
-        {
-            const long NOT_RUNNING_UPDATE_LATEST = 0;
-            const long RUNNING_UPDATE_LATEST = 1;
-
-            if (Interlocked.Exchange(ref interLockRunningUpdate, RUNNING_UPDATE_LATEST) == RUNNING_UPDATE_LATEST)
-                return;
-
-            double dspTime = scrConductor.instance.dspTime - 1.0;
-            await Task.Run(() =>
-                {
-                    while (hitSoundBuffer.Count > 0)
-                    {
-                        double targetDelay = hitSoundBuffer.Keys.First();
-                        if (dspTime > targetDelay)
-                        {
-                            Main.DebugPrinting($"TryUpdateLatest: [Operation: delete], {targetDelay}, {dspTime}");
-                            hitSoundBuffer.Remove(targetDelay);
-                            continue;
-                        }
-                        break;
-                    }
-
-                    while (keyReleaseDelay.Count > 0)
-                    {
-                        double targetDelay = keyReleaseDelay.First();
-                        if (dspTime > targetDelay)
-                        {
-                            Main.DebugPrinting($"TryUpdateLatest[KeyRelease]: [Operation: delete], {targetDelay}, {dspTime}");
-                            keyReleaseDelay.Remove(targetDelay);
-                            continue;
-                        }
-                        break;
-                    }
-
-                    Interlocked.Exchange(ref interLockRunningUpdate, NOT_RUNNING_UPDATE_LATEST);
-                });
-        }
-
         private bool IsDoingReleaseHitSound(double late, double early)
         {
-            double average = (late + early) / 2;
+            double average = (late + early) / 2.0;
             return keyReleaseDelay.Any((a) =>
             {
-                var locAverage = (a + average) / 2;
+                double locAverage = (a + average) / 2.0;
                 return (late < locAverage) && (locAverage < early);
             });
         }
 
-        public bool TryGetHitSound(double dspTime, bool isKeyPressed, out AudioSource audioSource)
+        internal bool TryGetHitSound(double dspTime, bool isKeyPressed, out AudioSource audioSource)
         {
             double currentHitSoundDelay = dspTime;
 
@@ -151,11 +148,13 @@ namespace InputSound
             }
 
             audioSource = null;
+            if (audioSourceInfo == null)
+                return false;
+            if (!isKeyPressed)
+                if (!IsDoingReleaseHitSound(lateHitSoundPair.Key, earlyHitSoundPair.Key))
+                    return false;
 
-            if (audioSourceInfo != null)
-                if (IsDoingReleaseHitSound(lateHitSoundPair.Key, earlyHitSoundPair.Key) || isKeyPressed)
-                    audioSource = audioSourceInfo.AudioSource;
-
+            audioSource = audioSourceInfo.AudioSource;
             return audioSource != null;
         }
 
@@ -179,6 +178,22 @@ namespace InputSound
             {
                 AudioSource = audioSource;
                 AdditionalPriority = additionalPriority;
+            }
+        }
+
+        public async void PlayHitSound(bool isKeyPressed, Task<bool> isExecuteLazy)
+        {
+            double dspTime = scrConductor.instance.dspTime;
+            try
+            {
+                AudioSource audSrc = null;
+                var lazyFind = Task.Run(() => TryGetHitSound(dspTime, isKeyPressed, out audSrc));
+                if (await isExecuteLazy && await lazyFind)
+                    audSrc.Play();
+            }
+            catch (Exception e)
+            {
+                Main.Logger.LogException(e);
             }
         }
     }
