@@ -50,7 +50,7 @@ namespace InputSound
         }
 
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
-        private static void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
+        private static void HookCallbackPrefix(SkyHookEvent ev)
         {
             var srcControllerInstance = scrController.instance;
             if (srcControllerInstance == null)
@@ -83,7 +83,7 @@ namespace InputSound
     internal class scrConductorPatch
     {
         [HarmonyPatch(nameof(scrConductor.PlayWithEndTime), new Type[] { typeof(string), typeof(double), typeof(double), typeof(float), typeof(int) }), HarmonyPrefix]
-        private static void PlayWithEndTimePrefix(string snd, double time, double endTime, float volume = 1f, int priority = 128)
+        private static void PlayWithEndTimePrefix(double endTime)
         {
             SkyHookManagerPatch.hitSoundQueue.EnrollReleaseHitSound(endTime);
         }
