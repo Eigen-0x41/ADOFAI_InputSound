@@ -17,12 +17,8 @@ namespace InputSound
         internal static UnityModManager.ModEntry.ModLogger Logger;
 
         private static bool isModEnabled = false;
-        private static bool isAuxEnabled = true;
-        public static bool IsEnabled
-        {
-            get => (harmony != null) && isModEnabled && isAuxEnabled;
-            set => isAuxEnabled = value;
-        }
+        public static bool IsEnabled => (harmony != null) && isModEnabled;
+
 
         [Conditional("DEBUG")]
         static public void DebugPrinting(string str)
