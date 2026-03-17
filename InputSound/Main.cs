@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Threading.Tasks;
+using UnityEngine;
 using UnityEngine.Audio;
 using UnityModManagerNet;
 
@@ -97,7 +98,7 @@ namespace InputSound
     internal class AudioManagerPatch
     {
         [HarmonyPatch(nameof(AudioManager.Play), new Type[] { typeof(string), typeof(double), typeof(AudioMixerGroup), typeof(float), typeof(int) }), HarmonyPrefix]
-        private static bool PlayPrefix(string snd, double time, AudioMixerGroup group, float volume, int priority)
+        private static bool PlayPrefix(ref AudioSource __result, string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
             if (!Main.IsEnabled)
                 return true;
@@ -106,7 +107,7 @@ namespace InputSound
             if ((snd == "sndHat") && (priority == 10))
                 return true;
 
-            Main.hitSoundQueue.EnrollHitSound(snd, time, group, volume, priority);
+            __result = Main.hitSoundQueue.EnrollHitSound(snd, time, group, volume, priority);
 
             return false;
         }

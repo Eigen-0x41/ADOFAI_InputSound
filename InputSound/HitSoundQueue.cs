@@ -86,15 +86,17 @@ namespace InputSound
                     Interlocked.Exchange(ref interLockRunningUpdate, NOT_RUNNING_UPDATE_LATEST);
                 });
         }
-        public void EnrollHitSound(string snd, double time, AudioMixerGroup group, float volume, int priority)
+        public AudioSource EnrollHitSound(string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
+            AudioSource audioSource = null;
+
             int additionalPriority = GenAdditionalPriority(snd, priority);
             if (IsDoingAddValue(time, priority, additionalPriority))
             {
 
                 var __instance = AudioManager.Instance;
 
-                AudioSource audioSource = __instance.MakeSource(snd);
+                audioSource = __instance.MakeSource(snd);
                 audioSource.pitch = 1f;
 
                 if (group != null)
@@ -108,8 +110,13 @@ namespace InputSound
 
                 hitSoundBuffer[time] = new AudioSourceInfomation(audioSource, additionalPriority);
             }
+            else
+            {
+                audioSource = hitSoundBuffer[time].AudioSource;
+            }
 
             UpdateLatest();
+            return audioSource;
         }
         public void EnrollReleaseHitSound(double endTime)
         {
