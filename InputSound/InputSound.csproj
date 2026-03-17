@@ -85,6 +85,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="HitSoundQueue.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -95,6 +96,11 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>start powershell compress-archive -force "$(TargetDir)\Info.json","$(TargetDir)\$(TargetFileName)",$(SolutionDir)\LICENSE InputSound.zip</PostBuildEvent>
+    <PostBuildEvent>if $(ConfigurationName) == Debug (
+start XCOPY /Y /R "$(TargetDir)\Info.json" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\Info.json"
+
+start XCOPY /Y /R "$(TargetDir)\$(TargetFileName)" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\$(TargetFileName)"
+)
+start powershell compress-archive -force "$(TargetDir)\Info.json","$(TargetDir)\$(TargetFileName)",$(SolutionDir)\LICENSE InputSound.zip</PostBuildEvent>
   </PropertyGroup>
 </Project>

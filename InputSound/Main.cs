@@ -1,76 +1,139 @@
 ﻿using HarmonyLib;
 using SkyHook;
 using System;
+using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine.Audio;
 using UnityModManagerNet;
 
 namespace InputSound
 {
     static class Main
     {
-        public static UnityModManager.ModEntry ModEntry;
+        private static Harmony harmony = null;
+
+        internal static HitSoundQueue hitSoundQueue = new HitSoundQueue();
+        internal static UnityModManager.ModEntry.ModLogger Logger;
+
+        private static bool isModEnabled = false;
+        public static bool IsEnabled => (harmony != null) && isModEnabled;
 
 
-        public static bool Load(UnityModManager.ModEntry modEntry)
+        [Conditional("DEBUG")]
+        static public void DebugPrinting(string str)
         {
-            var harmony = new Harmony(modEntry.Info.Id);
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
-            scrConductorPatch.HitSoundsDataPatch.LoadMannual(modEntry, harmony);
+            Logger.Log(str);
+        }
 
-            ModEntry = modEntry;
+        public static void Load(UnityModManager.ModEntry modEntry)
+        {
+            Logger = modEntry.Logger;
+            modEntry.OnToggle = OnToggle;
+        }
 
+        public static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
+        {
+            if (value)
+            {
+                StartMod(modEntry);
+            }
+            else
+            {
+                StopMod(modEntry);
+            }
             return true;
+        }
+
+        private static void StartMod(UnityModManager.ModEntry modEntry)
+        {
+            if (harmony == null)
+            {
+                harmony = new Harmony(modEntry.Info.Id);
+                harmony.PatchAll(Assembly.GetExecutingAssembly());
+            }
+            isModEnabled = true;
+        }
+
+        private static void StopMod(UnityModManager.ModEntry modEntry)
+        {
+            //harmony.UnpatchAll(modEntry.Info.Id);
+            //harmony = null;
+            isModEnabled = false;
         }
     }
 
     [HarmonyPatch(typeof(SkyHookManager))]
-    public class SkyHookManagerPatch
+    internal class SkyHookManagerPatch
     {
-        private static void PlayHitSound()
-        {
-            var scrCondIns = scrConductor.instance;
-            if (scrCondIns == null) return;
-            AudioManager.Play("snd" + scrCondIns.hitSound, 0, scrCondIns.hitSoundGroup, scrCondIns.hitSoundVolume, 10);
-        }
-
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
-        public static void HookCallbackPrefix(SkyHookManager __instance, SkyHookEvent ev)
+        private static void HookCallbackPrefix(SkyHookEvent ev)
         {
-            if (ev.Type != SkyHook.EventType.KeyPressed)
-                return;
+            Main.hitSoundQueue.PlayHitSound(ev.Type == SkyHook.EventType.KeyPressed,
+                Task.Run(() =>
+                {
+                    if (!Main.IsEnabled)
+                        return false;
 
-            var srcControllerInstance = scrController.instance;
-            if (srcControllerInstance == null)
-                return;
-            if (srcControllerInstance.paused)
-                return;
+                    if (RDC.auto)
+                        return false;
 
-            Task.Run(() => PlayHitSound());
+                    var srcControllerInstance = scrController.instance;
+                    if (srcControllerInstance == null)
+                        return false;
+                    if (srcControllerInstance.paused)
+                        return false;
+                    if (srcControllerInstance.currFloor != null)
+                        if (srcControllerInstance.currFloor.auto)
+                            return false;
+                    return true;
+                }));
+        }
+    }
+
+    [HarmonyPatch(typeof(AudioManager))]
+    internal class AudioManagerPatch
+    {
+        [HarmonyPatch(nameof(AudioManager.Play), new Type[] { typeof(string), typeof(double), typeof(AudioMixerGroup), typeof(float), typeof(int) }), HarmonyPrefix]
+        private static bool PlayPrefix(string snd, double time, AudioMixerGroup group, float volume, int priority)
+        {
+            if (!Main.IsEnabled)
+                return true;
+
+            // 拍子の検出。
+            if ((snd == "sndHat") && (priority == 10))
+                return true;
+
+            Main.hitSoundQueue.EnrollHitSound(snd, time, group, volume, priority);
+
+            return false;
         }
     }
 
     [HarmonyPatch(typeof(scrConductor))]
-    public class scrConductorPatch
+    internal class scrConductorPatch
     {
-        public class HitSoundsDataPatch
+        [HarmonyPatch(nameof(scrConductor.PlayWithEndTime), new Type[] { typeof(string), typeof(double), typeof(double), typeof(float), typeof(int) }), HarmonyPrefix]
+        private static void PlayWithEndTimePrefix(double endTime)
         {
-            public static void LoadMannual(in UnityModManager.ModEntry modEntry, Harmony harmony)
-            {
-                var Asembly = Assembly.GetAssembly(typeof(scrConductor));
-                var mOriginal = AccessTools.Constructor(Asembly.GetType($"{nameof(scrConductor)}+HitSoundsData"), new Type[] { typeof(HitSound), typeof(double), typeof(float) });
-                modEntry.Logger.Log($"Original: {mOriginal}");
-                var mPrefix = AccessTools.Method(typeof(HitSoundsDataPatch), "HitSoundsDataPrefix");
-                modEntry.Logger.Log($"Prefix  : {mPrefix}");
-                harmony.Patch(mOriginal, new HarmonyMethod(mPrefix));
-            }
+            if (!Main.IsEnabled)
+                return;
 
-            public static void HitSoundsDataPrefix(HitSound hitSound, double time, ref float volume)
-            {
-                volume = 0.0f;
-            }
+            Main.hitSoundQueue.EnrollReleaseHitSound(endTime);
+        }
+    }
+
+    [HarmonyPatch(typeof(scrController))]
+    internal class scrControllerPatch
+    {
+        [HarmonyPatch(nameof(scrController.Hit), new Type[] { typeof(bool) }), HarmonyPostfix]
+        private static void HitPostfix()
+        {
+            if (!Main.IsEnabled)
+                return;
+
+            Main.hitSoundQueue.PlayHitSound(true,
+                 Task.Run(() => RDC.auto || scrController.instance.currFloor.auto));
         }
     }
 }
