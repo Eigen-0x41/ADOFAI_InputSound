@@ -133,6 +133,9 @@ namespace InputSound
         [HarmonyPatch(nameof(scrController.Hit), new Type[] { typeof(bool) }), HarmonyPostfix]
         private static void HitPostfix()
         {
+            if (!Main.IsEnabled)
+                return;
+
             Main.hitSoundQueue.PlayHitSound(true,
                  Task.Run(() => RDC.auto || scrController.instance.currFloor.auto));
         }
