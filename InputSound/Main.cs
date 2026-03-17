@@ -83,9 +83,11 @@ namespace InputSound
                         return false;
                     if (scrCtrlIns.paused)
                         return false;
-                    if (scrCtrlIns.currFloor != null)
-                        if (scrCtrlIns.currFloor.auto)
+
+                    if (scrCtrlIns.currFloor.nextfloor != null)
+                        if (scrCtrlIns.currFloor.auto && scrCtrlIns.currFloor.nextfloor.auto)
                             return false;
+
                     return true;
                 }));
         }
@@ -132,8 +134,9 @@ namespace InputSound
             if (!Main.IsEnabled)
                 return;
 
+            bool isAutoTile = __instance.currFloor.auto;
             Main.hitSoundQueue.PlayHitSoundAsync(true,
-                 Task.Run(() => RDC.auto || __instance.currFloor.auto));
+                 Task.Run(() => RDC.auto || isAutoTile));
         }
     }
 }
