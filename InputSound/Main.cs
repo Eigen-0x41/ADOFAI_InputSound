@@ -104,9 +104,8 @@ namespace InputSound
             if (!Main.IsEnabled)
                 return true;
 
-            // ノーツ音ではないヒットサウンドの検出用。
-            // ADOFAI本体にハードコードされています。
-            if (priority == 10)
+            // 拍子の検出。
+            if ((snd == "sndHat") && (priority == 10))
                 return true;
 
             Main.hitSoundQueue.EnrollHitSound(snd, time, group, volume, priority);
