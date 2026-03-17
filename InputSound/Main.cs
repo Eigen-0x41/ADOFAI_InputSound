@@ -69,22 +69,22 @@ namespace InputSound
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
         private static void HookCallbackPrefix(SkyHookEvent ev)
         {
-            Main.hitSoundQueue.PlayHitSound(ev.Type == SkyHook.EventType.KeyPressed,
+            if (!Main.IsEnabled)
+                return;
+
+            Main.hitSoundQueue.PlayHitSoundAsync(ev.Type == SkyHook.EventType.KeyPressed,
                 Task.Run(() =>
                 {
-                    if (!Main.IsEnabled)
-                        return false;
-
                     if (RDC.auto)
                         return false;
 
-                    var srcControllerInstance = scrController.instance;
-                    if (srcControllerInstance == null)
+                    var scrCtrlIns = scrController.instance;
+                    if (scrCtrlIns == null)
                         return false;
-                    if (srcControllerInstance.paused)
+                    if (scrCtrlIns.paused)
                         return false;
-                    if (srcControllerInstance.currFloor != null)
-                        if (srcControllerInstance.currFloor.auto)
+                    if (scrCtrlIns.currFloor != null)
+                        if (scrCtrlIns.currFloor.auto)
                             return false;
                     return true;
                 }));
@@ -127,13 +127,13 @@ namespace InputSound
     internal class scrControllerPatch
     {
         [HarmonyPatch(nameof(scrController.Hit), new Type[] { typeof(bool) }), HarmonyPostfix]
-        private static void HitPostfix()
+        private static void HitPostfix(scrController __instance)
         {
             if (!Main.IsEnabled)
                 return;
 
-            Main.hitSoundQueue.PlayHitSound(true,
-                 Task.Run(() => RDC.auto || scrController.instance.currFloor.auto));
+            Main.hitSoundQueue.PlayHitSoundAsync(true,
+                 Task.Run(() => RDC.auto || __instance.currFloor.auto));
         }
     }
 }

@@ -181,14 +181,14 @@ namespace InputSound
             }
         }
 
-        public async void PlayHitSound(bool isKeyPressed, Task<bool> isExecuteLazy)
+        public async void PlayHitSoundAsync(bool isKeyPressed, Task<bool> isExecuteLazy)
         {
-            double dspTime = scrConductor.instance.dspTime;
             try
             {
-                AudioSource audSrc = null;
-                var lazyFind = Task.Run(() => TryGetHitSound(dspTime, isKeyPressed, out audSrc));
-                if (await isExecuteLazy && await lazyFind)
+                var scrCondIns = scrConductor.instance;
+                if (scrCondIns == null)
+                    return;
+                if (TryGetHitSound(scrCondIns.dspTime, isKeyPressed, out AudioSource audSrc) && await isExecuteLazy)
                     audSrc.Play();
             }
             catch (Exception e)
