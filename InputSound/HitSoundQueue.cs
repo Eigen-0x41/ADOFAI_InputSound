@@ -52,35 +52,32 @@ namespace InputSound
         private long interLockRunningUpdate = 0;
         private async void UpdateLatest()
         {
+            const double bufferTime = 1.0;
             const long NOT_RUNNING_UPDATE_LATEST = 0;
             const long RUNNING_UPDATE_LATEST = 1;
 
             if (Interlocked.Exchange(ref interLockRunningUpdate, RUNNING_UPDATE_LATEST) == RUNNING_UPDATE_LATEST)
                 return;
 
-            double dspTime = scrConductor.instance.dspTime - 8.0;
+            double dspTime = scrConductor.instance.dspTime - bufferTime;
             await Task.Run(() =>
                 {
                     while (hitSoundBuffer.Count > 0)
                     {
                         double targetDelay = hitSoundBuffer.Keys.First();
-                        if (dspTime > targetDelay)
-                        {
-                            hitSoundBuffer.Remove(targetDelay);
-                            continue;
-                        }
-                        break;
+                        if (targetDelay > dspTime)
+                            break;
+
+                        hitSoundBuffer.Remove(targetDelay);
                     }
 
                     while (keyReleaseDelay.Count > 0)
                     {
                         double targetDelay = keyReleaseDelay.First();
-                        if (dspTime > targetDelay)
-                        {
-                            keyReleaseDelay.Remove(targetDelay);
-                            continue;
-                        }
-                        break;
+                        if (targetDelay > dspTime)
+                            break;
+
+                        keyReleaseDelay.Remove(targetDelay);
                     }
 
                     Interlocked.Exchange(ref interLockRunningUpdate, NOT_RUNNING_UPDATE_LATEST);
