@@ -50,7 +50,7 @@ namespace InputSound
         }
 
         private long interLockRunningUpdate = 0;
-        private async void UpdateLatest()
+        private async void ResourceReleser()
         {
             const double bufferTime = 1.0;
             const long NOT_RUNNING_UPDATE_LATEST = 0;
@@ -83,6 +83,13 @@ namespace InputSound
                     Interlocked.Exchange(ref interLockRunningUpdate, NOT_RUNNING_UPDATE_LATEST);
                 });
         }
+
+        public void Clear()
+        {
+            hitSoundBuffer.Clear();
+            keyReleaseDelay.Clear();
+        }
+
         public AudioSource EnrollHitSound(string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
             AudioSource audioSource = null;
@@ -112,13 +119,13 @@ namespace InputSound
                 audioSource = hitSoundBuffer[time].AudioSource;
             }
 
-            UpdateLatest();
+            ResourceReleser();
             return audioSource;
         }
         public void EnrollReleaseHitSound(double endTime)
         {
             keyReleaseDelay.Add(endTime);
-            UpdateLatest();
+            ResourceReleser();
         }
 
         private bool IsDoingReleaseHitSound(double late, double early)

@@ -103,8 +103,7 @@ namespace InputSound
             if (!Main.IsEnabled)
                 return true;
 
-            // 拍子の検出。
-            if ((snd == "sndHat") && (priority == 10))
+            if (priority != 128)
                 return true;
 
             __result = Main.hitSoundQueue.EnrollHitSound(snd, time, group, volume, priority);
@@ -123,6 +122,12 @@ namespace InputSound
                 return;
 
             Main.hitSoundQueue.EnrollReleaseHitSound(endTime);
+        }
+
+        [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyPostfix]
+        private static void PlayHitTimesPostfix()
+        {
+            Main.hitSoundQueue.Clear();
         }
     }
 
