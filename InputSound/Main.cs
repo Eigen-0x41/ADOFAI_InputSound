@@ -1,11 +1,11 @@
 ﻿using HarmonyLib;
 using SkyHook;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Threading.Tasks;
-using UnityEngine;
-using UnityEngine.Audio;
 using UnityModManagerNet;
 
 namespace InputSound
@@ -14,11 +14,10 @@ namespace InputSound
     {
         private static Harmony harmony = null;
 
-        internal static HitSoundQueue hitSoundQueue = new HitSoundQueue();
         internal static UnityModManager.ModEntry.ModLogger Logger;
 
         private static bool isModEnabled = false;
-        public static bool IsEnabled => (harmony != null) && isModEnabled;
+        public static bool IsEnabled => !(harmony is null) && isModEnabled;
 
 
         [Conditional("DEBUG")]
@@ -48,18 +47,22 @@ namespace InputSound
 
         private static void StartMod(UnityModManager.ModEntry modEntry)
         {
-            if (harmony == null)
+            if (harmony is null)
             {
                 harmony = new Harmony(modEntry.Info.Id);
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
             }
+            if (HitSoundQueue.instance is null)
+                HitSoundQueue.instance = new HitSoundQueue();
+
             isModEnabled = true;
         }
 
         private static void StopMod(UnityModManager.ModEntry modEntry)
         {
-            //harmony.UnpatchAll(modEntry.Info.Id);
-            //harmony = null;
+            harmony.UnpatchAll(modEntry.Info.Id);
+            harmony = null;
+            HitSoundQueue.instance = null;
             isModEnabled = false;
         }
     }
@@ -72,43 +75,27 @@ namespace InputSound
         {
             if (!Main.IsEnabled)
                 return;
+            if (HitSoundQueue.instance is null)
+                return;
 
-            Main.hitSoundQueue.PlayHitSoundAsync(ev.Type == SkyHook.EventType.KeyPressed,
+            HitSoundQueue.instance.PlayHitSoundAsync(ev.Type == SkyHook.EventType.KeyPressed,
                 Task.Run(() =>
                 {
                     if (RDC.auto)
                         return false;
 
                     var scrCtrlIns = scrController.instance;
-                    if (scrCtrlIns == null)
+                    if (scrCtrlIns is null)
                         return false;
                     if (scrCtrlIns.paused)
                         return false;
 
-                    if (scrCtrlIns.currFloor.nextfloor != null)
+                    if (!(scrCtrlIns.currFloor.nextfloor is null))
                         if (scrCtrlIns.currFloor.auto && scrCtrlIns.currFloor.nextfloor.auto)
                             return false;
 
                     return true;
                 }));
-        }
-    }
-
-    [HarmonyPatch(typeof(AudioManager))]
-    internal class AudioManagerPatch
-    {
-        [HarmonyPatch(nameof(AudioManager.Play), new Type[] { typeof(string), typeof(double), typeof(AudioMixerGroup), typeof(float), typeof(int) }), HarmonyPrefix]
-        private static bool PlayPrefix(ref AudioSource __result, string snd, double time, AudioMixerGroup group, float volume, int priority)
-        {
-            if (!Main.IsEnabled)
-                return true;
-
-            if (priority != 128)
-                return true;
-
-            __result = Main.hitSoundQueue.EnrollHitSound(snd, time, group, volume, priority);
-
-            return false;
         }
     }
 
@@ -120,14 +107,68 @@ namespace InputSound
         {
             if (!Main.IsEnabled)
                 return;
-
-            Main.hitSoundQueue.EnrollReleaseHitSound(endTime);
+            if (HitSoundQueue.instance is null)
+                return;
+            HitSoundQueue.instance.EnrollReleaseHitSound(endTime);
         }
 
         [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyPostfix]
         private static void PlayHitTimesPostfix()
         {
-            Main.hitSoundQueue.Clear();
+            if (HitSoundQueue.instance is null)
+                return;
+            HitSoundQueue.instance.Clear();
+        }
+
+        [HarmonyPatch("Update", new Type[] { }), HarmonyTranspiler]
+        private static IEnumerable<CodeInstruction> UpdateTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            //ldfld float32 scrConductor / HitSoundsData::volume
+            var assembly = Assembly.GetAssembly(typeof(scrConductor));
+            var field = assembly.GetType($"{nameof(scrConductor)}+HitSoundsData").GetField("volume");
+
+            int targetIndex = 0;
+            List<(OpCode opcode, object operand)> target = new List<(OpCode, object)>{
+                 ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, field),
+                 ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
+                 ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
+            };
+
+
+            bool isTranspileSuccess = false;
+            foreach (var instruction in instructions)
+            {
+                //Main.Logger.Log($"{instruction.opcode} {instruction.operand}");
+                //if (isTranspileSuccess)
+                //yield return instruction;
+
+                if (isTranspileSuccess)
+                {
+                    yield return instruction;
+                    continue;
+                }
+
+                if (!instruction.Is(target[targetIndex].opcode, target[targetIndex].operand))
+                {
+                    yield return instruction;
+                    targetIndex = 0;
+                    continue;
+                }
+
+                targetIndex++;
+                if (targetIndex < target.Count)
+                {
+                    yield return instruction;
+                    continue;
+                }
+
+                instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnroller));
+                yield return instruction;
+                isTranspileSuccess = true;
+            }
+
+            if (!isTranspileSuccess)
+                Main.Logger.Error("scrConductor.Update(): Faild to transpiling.");
         }
     }
 
@@ -139,9 +180,12 @@ namespace InputSound
         {
             if (!Main.IsEnabled)
                 return;
+            if (HitSoundQueue.instance is null)
+                return;
 
             bool isAutoTile = __instance.currFloor.auto;
-            Main.hitSoundQueue.PlayHitSoundAsync(true,
+
+            HitSoundQueue.instance.PlayHitSoundAsync(true,
                  Task.Run(() => RDC.auto || isAutoTile));
         }
     }

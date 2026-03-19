@@ -10,10 +10,12 @@ namespace InputSound
 {
     internal class HitSoundQueue
     {
+        public static HitSoundQueue instance = null;
+
         private SortedList<double, AudioSourceInfomation> hitSoundBuffer = new SortedList<double, AudioSourceInfomation>();
         private SortedSet<double> keyReleaseDelay = new SortedSet<double>();
 
-        static PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
+        private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
 
         private int GenAdditionalPriority(string snd, int priority)
         {
@@ -90,6 +92,17 @@ namespace InputSound
             keyReleaseDelay.Clear();
         }
 
+        public static AudioSource HitSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
+        {
+            if (!Main.IsEnabled)
+                return AudioManager.Play(snd, time, group, volume, priority);
+
+            if (instance is null)
+                return AudioManager.Play(snd, time, group, volume, priority);
+
+            return instance.EnrollHitSound(snd, time, group, volume, priority);
+        }
+
         public AudioSource EnrollHitSound(string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
             AudioSource audioSource = null;
@@ -103,7 +116,7 @@ namespace InputSound
                 audioSource = __instance.MakeSource(snd);
                 audioSource.pitch = 1f;
 
-                if (group != null)
+                if (!(group is null))
                     audioSource.outputAudioMixerGroup = group;
                 else
                     audioSource.outputAudioMixerGroup = __instance.fallbackMixerGroup;
@@ -159,14 +172,14 @@ namespace InputSound
             }
 
             audioSource = null;
-            if (audioSourceInfo == null)
+            if (audioSourceInfo is null)
                 return false;
             if (!isKeyPressed)
                 if (!IsDoingReleaseHitSound(lateHitSoundPair.Key, earlyHitSoundPair.Key))
                     return false;
 
             audioSource = audioSourceInfo.AudioSource;
-            return audioSource != null;
+            return !(audioSource is null);
         }
 
         private class PriorityBuffer
@@ -197,7 +210,7 @@ namespace InputSound
             try
             {
                 var scrCondIns = scrConductor.instance;
-                if (scrCondIns == null)
+                if (scrCondIns is null)
                     return;
                 if (TryGetHitSound(scrCondIns.dspTime, isKeyPressed, out AudioSource audSrc) && await isExecuteLazy)
                     audSrc.Play();
