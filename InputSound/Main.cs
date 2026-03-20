@@ -124,33 +124,35 @@ namespace InputSound
         [HarmonyPatch("Update", new Type[] { }), HarmonyTranspiler]
         private static IEnumerable<CodeInstruction> UpdateTranspiler(IEnumerable<CodeInstruction> instructions)
         {
-            //ldfld float32 scrConductor / HitSoundsData::volume
             var assembly = Assembly.GetAssembly(typeof(scrConductor));
-            var field = assembly.GetType($"{nameof(scrConductor)}+HitSoundsData").GetField("volume");
+            var hitSoundsDataVolume = assembly.GetType($"{nameof(scrConductor)}+HitSoundsData").GetField("volume");
 
-            CILInjectionPointFinder injectionPointFinder = new CILInjectionPointFinder(
-                new List<(OpCode, object)>{
-                    ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, field),
-                    ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
-                    ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
-                });
+            var InjectonPoints = new CILInjectionPointFinder[]{
+                new CILInjectionPointFinder(
+                    new List<(OpCode, object)>{
+                        ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, hitSoundsDataVolume),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
+                    })
+            };
 
             foreach (var instruction in instructions)
             {
-                //Main.Logger.Log($"{instruction.opcode} {instruction.operand}");
-                //if (isTranspileSuccess)
-                //yield return instruction;
-
-                if (injectionPointFinder.IsInjectionPoint(instruction))
+                foreach (var injectionPoint in InjectonPoints)
                 {
-                    instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnroller));
+                    if (injectionPoint.IsInjectionPoint(instruction))
+                    {
+                        instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnroller));
+                    }
                 }
 
                 yield return instruction;
             }
 
-            if (!injectionPointFinder.IsInjected)
-                Main.Logger.Error("scrConductor.Update(): Faild to transpiling.");
+
+            foreach (var injectionPoint in InjectonPoints)
+                if (!injectionPoint.IsInjected)
+                    Main.Logger.Error("scrConductor.Update(): Faild to transpiling.");
         }
     }
 
