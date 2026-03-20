@@ -3,7 +3,6 @@ using SkyHook;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading.Tasks;
@@ -103,16 +102,6 @@ namespace InputSound
     [HarmonyPatch(typeof(scrConductor))]
     internal class scrConductorPatch
     {
-        //[HarmonyPatch(nameof(scrConductor.PlayWithEndTime), new Type[] { typeof(string), typeof(double), typeof(double), typeof(float), typeof(int) }), HarmonyPrefix]
-        //private static void PlayWithEndTimePrefix(double endTime)
-        //{
-        //    if (!Main.IsEnabled)
-        //        return;
-        //    if (HitSoundQueue.instance is null)
-        //        return;
-        //    HitSoundQueue.instance.EnrollReleaseHitSound(endTime);
-        //}
-
         [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyPostfix]
         private static void PlayHitTimesPostfix()
         {
