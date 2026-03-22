@@ -75,10 +75,12 @@ namespace InputSound
         {
             if (!Main.IsEnabled)
                 return;
+            if (ev.Type != SkyHook.EventType.KeyPressed)
+                return;
             if (HitSoundQueue.instance is null)
                 return;
 
-            HitSoundQueue.instance.PlayHitSoundAsync(ev.Type == SkyHook.EventType.KeyPressed,
+            HitSoundQueue.instance.PlayHitSoundAsync(
                 Task.Run(() =>
                 {
                     if (RDC.auto)
@@ -169,7 +171,7 @@ namespace InputSound
 
             bool isAutoTile = __instance.currFloor.auto;
 
-            HitSoundQueue.instance.PlayHitSoundAsync(true,
+            HitSoundQueue.instance.PlayHitSoundAsync(
                  Task.Run(() => RDC.auto || isAutoTile));
         }
     }
