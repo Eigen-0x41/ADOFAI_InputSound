@@ -51,38 +51,36 @@ namespace InputSound
             return true;
         }
 
-        private long interLockRunningUpdate = 0;
-        private async void ResourceReleser()
+        const long NOT_RUNNING_RESOURCE_RELEASER = 0;
+        const long RUNNING_RESOURCE_RELEASER = 1;
+        private long interLockResourceRelease = NOT_RUNNING_RESOURCE_RELEASER;
+        private async void ResourceReleserAsync()
         {
             const double bufferTime = 1.0;
-            const long NOT_RUNNING_UPDATE_LATEST = 0;
-            const long RUNNING_UPDATE_LATEST = 1;
-
-            if (Interlocked.Exchange(ref interLockRunningUpdate, RUNNING_UPDATE_LATEST) == RUNNING_UPDATE_LATEST)
-                return;
 
             double dspTime = scrConductor.instance.dspTime - bufferTime;
             await Task.Run(() =>
                 {
-                    while (hitSoundBuffer.Count > 0)
-                    {
-                        double targetDelay = hitSoundBuffer.Keys.First();
-                        if (targetDelay > dspTime)
-                            break;
+                    if (Interlocked.Exchange(ref interLockResourceRelease, RUNNING_RESOURCE_RELEASER) != NOT_RUNNING_RESOURCE_RELEASER)
+                        return;
 
-                        hitSoundBuffer.Remove(targetDelay);
+                    var deleteKeys = new List<double>(hitSoundBuffer.Keys);
+                    foreach (var key in deleteKeys)
+                    {
+                        if (key > dspTime)
+                            break;
+                        hitSoundBuffer.Remove(key);
                     }
 
-                    while (keyReleaseDelay.Count > 0)
+                    deleteKeys = new List<double>(keyReleaseDelay);
+                    foreach (var key in deleteKeys)
                     {
-                        double targetDelay = keyReleaseDelay.First();
-                        if (targetDelay > dspTime)
+                        if (key > dspTime)
                             break;
-
-                        keyReleaseDelay.Remove(targetDelay);
+                        keyReleaseDelay.Remove(key);
                     }
 
-                    Interlocked.Exchange(ref interLockRunningUpdate, NOT_RUNNING_UPDATE_LATEST);
+                    Interlocked.Exchange(ref interLockResourceRelease, NOT_RUNNING_RESOURCE_RELEASER);
                 });
         }
 
@@ -132,13 +130,13 @@ namespace InputSound
                 audioSource = hitSoundBuffer[time].AudioSource;
             }
 
-            ResourceReleser();
+            ResourceReleserAsync();
             return audioSource;
         }
         public void EnrollReleaseHitSound(double endTime)
         {
             keyReleaseDelay.Add(endTime);
-            ResourceReleser();
+            ResourceReleserAsync();
         }
 
         private bool IsDoingReleaseHitSound(double late, double early)
