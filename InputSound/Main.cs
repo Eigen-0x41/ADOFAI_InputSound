@@ -68,7 +68,7 @@ namespace InputSound
     }
 
     [HarmonyPatch(typeof(SkyHookManager))]
-    internal class SkyHookManagerPatch
+    internal static class SkyHookManagerPatch
     {
         [HarmonyPatch("HookCallback", new Type[] { typeof(SkyHookEvent) }), HarmonyPrefix]
         private static void HookCallbackPrefix(SkyHookEvent ev)
@@ -100,7 +100,7 @@ namespace InputSound
     }
 
     [HarmonyPatch(typeof(scrConductor))]
-    internal class scrConductorPatch
+    internal static class scrConductorPatch
     {
         [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyPostfix]
         private static void PlayHitTimesPostfix()
@@ -146,7 +146,7 @@ namespace InputSound
     }
 
     [HarmonyPatch(typeof(scrController))]
-    internal class scrControllerPatch
+    internal static class scrControllerPatch
     {
         [HarmonyPatch(nameof(scrController.Hit), new Type[] { typeof(bool) }), HarmonyPostfix]
         private static void HitPostfix(scrController __instance)

@@ -179,30 +179,6 @@ namespace InputSound
             audioSource = audioSourceInfo.AudioSource;
             return !(audioSource is null);
         }
-
-        private class PriorityBuffer
-        {
-            public string Snd = string.Empty;
-            public int Priority = 0;
-
-            public void Init(string soundName, int priority)
-            {
-                Snd = soundName;
-                Priority = priority;
-            }
-        }
-        private class AudioSourceInfomation
-        {
-            public AudioSource AudioSource = null;
-            public int AdditionalPriority = 0;
-
-            public AudioSourceInfomation(AudioSource audioSource, int additionalPriority = 0)
-            {
-                AudioSource = audioSource;
-                AdditionalPriority = additionalPriority;
-            }
-        }
-
         public async void PlayHitSoundAsync(bool isKeyPressed, Task<bool> isExecuteLazy)
         {
             try
@@ -216,6 +192,30 @@ namespace InputSound
             catch (Exception e)
             {
                 Main.Logger.LogException(e);
+            }
+        }
+
+
+        private sealed class PriorityBuffer
+        {
+            public string Snd = string.Empty;
+            public int Priority = 0;
+
+            public void Init(string soundName, int priority)
+            {
+                Snd = soundName;
+                Priority = priority;
+            }
+        }
+        private sealed class AudioSourceInfomation
+        {
+            public AudioSource AudioSource = null;
+            public int AdditionalPriority = 0;
+
+            public AudioSourceInfomation(AudioSource audioSource, int additionalPriority = 0)
+            {
+                AudioSource = audioSource;
+                AdditionalPriority = additionalPriority;
             }
         }
     }
