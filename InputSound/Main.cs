@@ -114,15 +114,26 @@ namespace InputSound
         private static IEnumerable<CodeInstruction> UpdateTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             var assembly = Assembly.GetAssembly(typeof(scrConductor));
+            var holdSoundsDataVolume = assembly.GetType($"{nameof(scrConductor)}+HoldSoundsData").GetField("volume");
             var hitSoundsDataVolume = assembly.GetType($"{nameof(scrConductor)}+HitSoundsData").GetField("volume");
 
             var InjectonPoints = new CILInjectionPointFinder[]{
                 new CILInjectionPointFinder(
                     new List<(OpCode, object)>{
+                        ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, holdSoundsDataVolume),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
+                    },
+                    (instruction) => instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HoldSoundEnroller))
+                    ),
+                new CILInjectionPointFinder(
+                    new List<(OpCode, object)>{
                         ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, hitSoundsDataVolume),
                         ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
                         ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
-                    })
+                    },
+                    (instruction) => instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnroller))
+                    ),
             };
 
             foreach (var instruction in instructions)
@@ -131,7 +142,7 @@ namespace InputSound
                 {
                     if (injectionPoint.IsInjectionPoint(instruction))
                     {
-                        instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnroller));
+                        injectionPoint.Injection(instruction);
                     }
                 }
 

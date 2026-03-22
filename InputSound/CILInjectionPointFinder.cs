@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
@@ -11,9 +12,12 @@ namespace InputSound
         public int CurrentRepeatCount { get; private set; }
         public bool IsInjected { get; private set; }
 
-        public CILInjectionPointFinder(IList<(OpCode opcode, object operand)> matchInstructions)
+        public Action<CodeInstruction> Injectioner { get; protected set; }
+
+        public CILInjectionPointFinder(IList<(OpCode opcode, object operand)> matchInstructions, Action<CodeInstruction> action)
         {
             MatchInstructions = matchInstructions;
+            Injectioner = action;
         }
 
         public bool IsInjectionPoint(in CodeInstruction instruction)
@@ -33,7 +37,6 @@ namespace InputSound
             if (CurrentRepeatCount != MatchInstructions.Count())
                 return false;
 
-            IsInjected = true;
             return true;
         }
 
@@ -41,6 +44,12 @@ namespace InputSound
         {
             CurrentRepeatCount = 0;
             IsInjected = false;
+        }
+
+        public void Injection(CodeInstruction instruction)
+        {
+            Injectioner(instruction);
+            IsInjected = true;
         }
     }
 }
