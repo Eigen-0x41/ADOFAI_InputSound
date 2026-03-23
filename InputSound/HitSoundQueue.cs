@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -155,18 +154,12 @@ namespace InputSound
         }
         public async void PlayHitSoundAsync(Task<bool> isExecuteLazy)
         {
-            try
-            {
-                var scrCondIns = scrConductor.instance;
-                if (scrCondIns is null)
-                    return;
-                if (TryGetHitSound(scrCondIns.dspTime, out AudioSource audSrc) && await isExecuteLazy)
-                    audSrc.Play();
-            }
-            catch (Exception e)
-            {
-                Main.Logger.LogException(e);
-            }
+            // もし落ちるようならここにtry-catch文でデバックする。
+            var scrCondIns = scrConductor.instance;
+            if (scrCondIns is null)
+                return;
+            if (TryGetHitSound(scrCondIns.dspTime, out AudioSource audSrc) && await isExecuteLazy)
+                audSrc.Play();
         }
 
         public static AudioSource HoldSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
