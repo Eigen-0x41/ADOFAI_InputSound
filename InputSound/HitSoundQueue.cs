@@ -80,16 +80,7 @@ namespace InputSound
         }
 
         private bool isPreviousEnrolledHoldHitSound = false;
-        public bool IsAutoHitSound()
-        {
-            if (isPreviousEnrolledHoldHitSound)
-            {
-                isPreviousEnrolledHoldHitSound = false;
-                return true;
-            }
-            return false;
-        }
-        private AudioSource EnrollHitSound(bool isHold, string snd, double time, AudioMixerGroup group, float volume, int priority)
+        private AudioSource EnrollHitSound(bool isHold, bool isReleaseHitSound, string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
             AudioSource audioSource = null;
 
@@ -111,7 +102,7 @@ namespace InputSound
                 audioSource.priority = priority;
                 float num = (audioSource.clip ? audioSource.clip.length : float.PositiveInfinity);
 
-                hitSoundBuffer[time] = new AudioSourceInfomation(audioSource: audioSource, additionalPriority: additionalPriority);
+                hitSoundBuffer[time] = new AudioSourceInfomation(audioSource, additionalPriority, isReleaseHitSound);
                 isPreviousEnrolledHoldHitSound = isHold;
             }
             else
@@ -123,43 +114,44 @@ namespace InputSound
             return audioSource;
         }
 
-        internal bool TryGetHitSound(double dspTime, out AudioSource audioSource)
+        internal bool TryGetAudioSourceInfomation(double dspTime, out AudioSourceInfomation audioSourceInfomation)
         {
             double currentHitSoundDelay = dspTime;
 
             var lateHitSoundPair = hitSoundBuffer.LastOrDefault((a) => a.Key < dspTime);
             var earlyHitSoundPair = hitSoundBuffer.FirstOrDefault((a) => dspTime < a.Key);
 
-            if (!hitSoundBuffer.TryGetValue(dspTime, out AudioSourceInfomation audioSourceInfo))
+            if (!hitSoundBuffer.TryGetValue(dspTime, out audioSourceInfomation))
             {
                 double averageHitSoundTime = (lateHitSoundPair.Key + earlyHitSoundPair.Key) / 2.0;
                 if (dspTime < averageHitSoundTime)
                 {
-                    audioSourceInfo = lateHitSoundPair.Value;
+                    audioSourceInfomation = lateHitSoundPair.Value;
                 }
                 else
                 {
-                    audioSourceInfo = earlyHitSoundPair.Value;
+                    audioSourceInfomation = earlyHitSoundPair.Value;
                 }
 
             }
-
-            audioSource = null;
-
-            if (audioSourceInfo is null)
-                return false;
-
-            audioSource = audioSourceInfo.AudioSource;
-            return !(audioSource is null);
+            return !(audioSourceInfomation is null);
         }
-        public async void PlayHitSoundAsync(Task<bool> isExecuteLazy)
+
+        public async void PlayHitSoundAsync(bool isReleased, Task<bool> isExecuteLazy)
         {
             // もし落ちるようならここにtry-catch文でデバックする。
             var scrCondIns = scrConductor.instance;
             if (scrCondIns is null)
                 return;
-            if (TryGetHitSound(scrCondIns.dspTime, out AudioSource audSrc) && await isExecuteLazy)
-                audSrc.Play();
+            if (!TryGetAudioSourceInfomation(scrCondIns.dspTime, out AudioSourceInfomation audSrcInfo))
+                return;
+            if (isReleased && !audSrcInfo.IsReleaseHitSound)
+                return;
+            if (audSrcInfo.AudioSource is null)
+                return;
+
+            if (await isExecuteLazy)
+                audSrcInfo.AudioSource.Play();
         }
 
         public static AudioSource HoldSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
@@ -170,10 +162,12 @@ namespace InputSound
             if (instance is null)
                 return AudioManager.Play(snd, time, group, volume, priority);
 
-            if (instance.IsAutoHitSound())
-                return AudioManager.Play(snd, time, group, volume, priority);
+            bool isReleaseHitSound = instance.isPreviousEnrolledHoldHitSound;
+            if (isReleaseHitSound)
+                if (!Main.settings.IsEnableReleaseHitSound)
+                    return AudioManager.Play(snd, time, group, volume, priority);
 
-            return instance.EnrollHitSound(true, snd, time, group, volume, priority);
+            return instance.EnrollHitSound(true, isReleaseHitSound, snd, time, group, volume, priority);
         }
 
         public static AudioSource HitSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
@@ -184,7 +178,7 @@ namespace InputSound
             if (instance is null)
                 return AudioManager.Play(snd, time, group, volume, priority);
 
-            return instance.EnrollHitSound(false, snd, time, group, volume, priority);
+            return instance.EnrollHitSound(false, false, snd, time, group, volume, priority);
         }
 
 
@@ -200,15 +194,17 @@ namespace InputSound
             }
         }
 
-        private sealed class AudioSourceInfomation
+        internal sealed class AudioSourceInfomation
         {
             public AudioSource AudioSource = null;
             public int AdditionalPriority = 0;
+            public bool IsReleaseHitSound = false;
 
-            public AudioSourceInfomation(AudioSource audioSource, int additionalPriority)
+            public AudioSourceInfomation(AudioSource audioSource, int additionalPriority, bool isReleaseHitSound)
             {
                 AudioSource = audioSource;
                 AdditionalPriority = additionalPriority;
+                IsReleaseHitSound = isReleaseHitSound;
             }
         }
     }

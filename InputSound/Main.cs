@@ -2,7 +2,6 @@
 using SkyHook;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading.Tasks;
@@ -13,23 +12,49 @@ namespace InputSound
     static class Main
     {
         private static Harmony harmony = null;
+        public static Settings settings = null;
 
         internal static UnityModManager.ModEntry.ModLogger Logger;
 
-        private static bool isModEnabled = false;
-        public static bool IsEnabled => !(harmony is null) && isModEnabled;
+        public static bool IsEnabled => !(harmony is null);
 
-
-        [Conditional("DEBUG")]
-        static public void DebugPrinting(string str)
+        private static void StartMod(UnityModManager.ModEntry modEntry)
         {
-            Logger.Log(str);
+            if (harmony is null)
+            {
+                harmony = new Harmony(modEntry.Info.Id);
+                harmony.PatchAll(Assembly.GetExecutingAssembly());
+            }
+            if (HitSoundQueue.instance is null)
+                HitSoundQueue.instance = new HitSoundQueue();
         }
 
-        public static void Load(UnityModManager.ModEntry modEntry)
+        private static void StopMod(UnityModManager.ModEntry modEntry)
+        {
+            harmony.UnpatchAll(modEntry.Info.Id);
+            harmony = null;
+            HitSoundQueue.instance = null;
+        }
+        private static void OnGUI(UnityModManager.ModEntry modEntry)
+        {
+            settings.Draw(modEntry);
+        }
+
+        private static void OnSaveGUI(UnityModManager.ModEntry modEntry)
+        {
+            settings.Save(modEntry);
+        }
+
+        public static bool Load(UnityModManager.ModEntry modEntry)
         {
             Logger = modEntry.Logger;
             modEntry.OnToggle = OnToggle;
+
+            settings = Settings.Load<Settings>(modEntry);
+            modEntry.OnGUI = OnGUI;
+            modEntry.OnSaveGUI = OnSaveGUI;
+
+            return true;
         }
 
         public static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
@@ -44,27 +69,6 @@ namespace InputSound
             }
             return true;
         }
-
-        private static void StartMod(UnityModManager.ModEntry modEntry)
-        {
-            if (harmony is null)
-            {
-                harmony = new Harmony(modEntry.Info.Id);
-                harmony.PatchAll(Assembly.GetExecutingAssembly());
-            }
-            if (HitSoundQueue.instance is null)
-                HitSoundQueue.instance = new HitSoundQueue();
-
-            isModEnabled = true;
-        }
-
-        private static void StopMod(UnityModManager.ModEntry modEntry)
-        {
-            harmony.UnpatchAll(modEntry.Info.Id);
-            harmony = null;
-            HitSoundQueue.instance = null;
-            isModEnabled = false;
-        }
     }
 
     [HarmonyPatch(typeof(SkyHookManager))]
@@ -75,12 +79,10 @@ namespace InputSound
         {
             if (!Main.IsEnabled)
                 return;
-            if (ev.Type != SkyHook.EventType.KeyPressed)
-                return;
             if (HitSoundQueue.instance is null)
                 return;
 
-            HitSoundQueue.instance.PlayHitSoundAsync(
+            HitSoundQueue.instance.PlayHitSoundAsync(ev.Type == SkyHook.EventType.KeyReleased,
                 Task.Run(() =>
                 {
                     if (RDC.auto)
@@ -171,7 +173,7 @@ namespace InputSound
 
             bool isAutoTile = __instance.currFloor.auto;
 
-            HitSoundQueue.instance.PlayHitSoundAsync(
+            HitSoundQueue.instance.PlayHitSoundAsync(false,
                  Task.Run(() => RDC.auto || isAutoTile));
         }
     }
