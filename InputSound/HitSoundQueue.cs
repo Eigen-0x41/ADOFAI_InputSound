@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -81,8 +80,14 @@ namespace InputSound
         }
 
         private bool isPreviousEnrolledHoldHitSound = false;
-        private AudioSource EnrollHitSound(bool isHold, bool isReleaseHitSound, string snd, double time, AudioMixerGroup group, float volume, int priority)
+        private AudioSource EnrollHitSound(bool isHold, string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
+            if (isHold && isPreviousEnrolledHoldHitSound)
+            {
+                isPreviousEnrolledHoldHitSound = false;
+                return AudioManager.Play(snd, time, group, volume, priority);
+            }
+
             AudioSource audioSource = null;
 
             int additionalPriority = GenAdditionalPriority(snd, priority);
@@ -103,7 +108,7 @@ namespace InputSound
                 audioSource.priority = priority;
                 float num = (audioSource.clip ? audioSource.clip.length : float.PositiveInfinity);
 
-                hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority, isReleaseHitSound);
+                hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority);
                 isPreviousEnrolledHoldHitSound = isHold;
             }
             else
@@ -184,7 +189,7 @@ namespace InputSound
                 return;
             if (!TryGetAudioSourceInfomation(scrCondIns.dspTime, out AudioSourceInformation audSrcInfo))
                 return;
-            if (isReleased && !audSrcInfo.IsReleaseHitSound)
+            if (isReleased)
                 return;
             if (audSrcInfo.AudioSource is null)
                 return;
@@ -201,12 +206,7 @@ namespace InputSound
             if (instance is null)
                 return AudioManager.Play(snd, time, group, volume, priority);
 
-            bool isReleaseHitSound = instance.isPreviousEnrolledHoldHitSound;
-            if (isReleaseHitSound)
-                if (!Main.settings.IsEnableReleaseHitSound)
-                    return AudioManager.Play(snd, time, group, volume, priority);
-
-            return instance.EnrollHitSound(true, isReleaseHitSound, snd, time, group, volume, priority);
+            return instance.EnrollHitSound(true, snd, time, group, volume, priority);
         }
 
         public static AudioSource HitSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
@@ -217,7 +217,7 @@ namespace InputSound
             if (instance is null)
                 return AudioManager.Play(snd, time, group, volume, priority);
 
-            return instance.EnrollHitSound(false, false, snd, time, group, volume, priority);
+            return instance.EnrollHitSound(false, snd, time, group, volume, priority);
         }
 
 
@@ -237,13 +237,11 @@ namespace InputSound
         {
             public AudioSource AudioSource = null;
             public int AdditionalPriority = 0;
-            public bool IsReleaseHitSound = false;
 
-            public AudioSourceInformation(AudioSource audioSource, int additionalPriority, bool isReleaseHitSound)
+            public AudioSourceInformation(AudioSource audioSource, int additionalPriority)
             {
                 AudioSource = audioSource;
                 AdditionalPriority = additionalPriority;
-                IsReleaseHitSound = isReleaseHitSound;
             }
         }
     }
