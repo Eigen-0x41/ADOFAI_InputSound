@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,10 @@ namespace InputSound
     {
         public static HitSoundQueue instance = null;
 
-        private SortedList<double, AudioSourceInfomation> hitSoundBuffer = new SortedList<double, AudioSourceInfomation>();
+        private SortedList<double, AudioSourceInformation> hitSoundBuffer = new SortedList<double, AudioSourceInformation>();
+        const long HIT_SOUND_BUFFER_BARRIER_DISABLE = 0;
+        const long HIT_SOUND_BUFFER_BARRIER_ENABLE = 1;
+        private long hitSoundBufferBarrier = HIT_SOUND_BUFFER_BARRIER_DISABLE;
 
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
 
@@ -37,7 +41,7 @@ namespace InputSound
 
         private bool IsDoingAddValue(double time, int priority, int additionalPriority)
         {
-            AudioSourceInfomation audioSourceInfo = null;
+            AudioSourceInformation audioSourceInfo = null;
             if (hitSoundBuffer.TryGetValue(time, out audioSourceInfo))
             {
                 if (priority != audioSourceInfo.AudioSource.priority)
@@ -49,9 +53,6 @@ namespace InputSound
             return true;
         }
 
-        const long NOT_RUNNING_RESOURCE_RELEASER = 0;
-        const long RUNNING_RESOURCE_RELEASER = 1;
-        private long interLockResourceRelease = NOT_RUNNING_RESOURCE_RELEASER;
         private async void ResourceReleserAsync()
         {
             const double bufferTime = 1.0;
@@ -59,7 +60,7 @@ namespace InputSound
             double dspTime = scrConductor.instance.dspTime - bufferTime;
             await Task.Run(() =>
                 {
-                    if (Interlocked.Exchange(ref interLockResourceRelease, RUNNING_RESOURCE_RELEASER) != NOT_RUNNING_RESOURCE_RELEASER)
+                    if (Interlocked.Exchange(ref hitSoundBufferBarrier, HIT_SOUND_BUFFER_BARRIER_ENABLE) != HIT_SOUND_BUFFER_BARRIER_DISABLE)
                         return;
 
                     var deleteKeys = new List<double>(hitSoundBuffer.Keys);
@@ -70,7 +71,7 @@ namespace InputSound
                         hitSoundBuffer.Remove(key);
                     }
 
-                    Interlocked.Exchange(ref interLockResourceRelease, NOT_RUNNING_RESOURCE_RELEASER);
+                    Interlocked.Exchange(ref hitSoundBufferBarrier, HIT_SOUND_BUFFER_BARRIER_DISABLE);
                 });
         }
 
@@ -102,7 +103,7 @@ namespace InputSound
                 audioSource.priority = priority;
                 float num = (audioSource.clip ? audioSource.clip.length : float.PositiveInfinity);
 
-                hitSoundBuffer[time] = new AudioSourceInfomation(audioSource, additionalPriority, isReleaseHitSound);
+                hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority, isReleaseHitSound);
                 isPreviousEnrolledHoldHitSound = isHold;
             }
             else
@@ -114,27 +115,65 @@ namespace InputSound
             return audioSource;
         }
 
-        internal bool TryGetAudioSourceInfomation(double dspTime, out AudioSourceInfomation audioSourceInfomation)
+        private bool isEndedAudioSourceInformation = false;
+        internal bool TryGetAudioSourceInfomation(double dspTime, out AudioSourceInformation audioSourceInfomation)
         {
-            double currentHitSoundDelay = dspTime;
+            // オーバーフロー対策。
+            double lateTime = double.MinValue / 2;
+            double earlyTime = double.MaxValue / 2;
+            AudioSourceInformation earlyValue = null;
+            AudioSourceInformation lateValue = null;
 
-            var lateHitSoundPair = hitSoundBuffer.LastOrDefault((a) => a.Key < dspTime);
-            var earlyHitSoundPair = hitSoundBuffer.FirstOrDefault((a) => dspTime < a.Key);
+            int bufferCount = hitSoundBuffer.Count();
 
-            if (!hitSoundBuffer.TryGetValue(dspTime, out audioSourceInfomation))
+            if (bufferCount <= 0)
             {
-                double averageHitSoundTime = (lateHitSoundPair.Key + earlyHitSoundPair.Key) / 2.0;
-                if (dspTime < averageHitSoundTime)
-                {
-                    audioSourceInfomation = lateHitSoundPair.Value;
-                }
-                else
-                {
-                    audioSourceInfomation = earlyHitSoundPair.Value;
-                }
-
+                audioSourceInfomation = null;
+                return false;
             }
-            return !(audioSourceInfomation is null);
+
+            for (var index = 0; index < bufferCount; index++)
+            {
+                lateTime = hitSoundBuffer.Keys[index];
+                lateValue = hitSoundBuffer.Values[index];
+
+                if (dspTime < lateTime)
+                    break;
+
+                earlyTime = lateTime;
+                earlyValue = lateValue;
+            }
+
+            audioSourceInfomation = lateValue;
+            double averageTime = (earlyTime + lateTime) / 2.0;
+
+            if (earlyValue is null)
+                return true;
+            if (dspTime < averageTime)
+            {
+                if (!(scrController.instance.currFloor.nextfloor is null))
+                    if (earlyTime < (scrConductor.instance.dspTimeSongPosZero + scrController.instance.currFloor.nextfloor.entryTimePitchAdj))
+                        return false;
+                audioSourceInfomation = earlyValue;
+            }
+            else
+            {
+                if (!(scrController.instance.currFloor.nextfloor is null))
+                    if (lateTime > (scrConductor.instance.dspTimeSongPosZero + scrController.instance.currFloor.nextfloor.entryTimePitchAdj))
+                        return false;
+            }
+
+            if (lateTime == earlyTime)
+            {
+                if (isEndedAudioSourceInformation)
+                    return false;
+                isEndedAudioSourceInformation = true;
+            }
+            else
+            {
+                isEndedAudioSourceInformation = false;
+            }
+            return true;
         }
 
         public async void PlayHitSoundAsync(bool isReleased, Task<bool> isExecuteLazy)
@@ -143,7 +182,7 @@ namespace InputSound
             var scrCondIns = scrConductor.instance;
             if (scrCondIns is null)
                 return;
-            if (!TryGetAudioSourceInfomation(scrCondIns.dspTime, out AudioSourceInfomation audSrcInfo))
+            if (!TryGetAudioSourceInfomation(scrCondIns.dspTime, out AudioSourceInformation audSrcInfo))
                 return;
             if (isReleased && !audSrcInfo.IsReleaseHitSound)
                 return;
@@ -194,13 +233,13 @@ namespace InputSound
             }
         }
 
-        internal sealed class AudioSourceInfomation
+        internal sealed class AudioSourceInformation
         {
             public AudioSource AudioSource = null;
             public int AdditionalPriority = 0;
             public bool IsReleaseHitSound = false;
 
-            public AudioSourceInfomation(AudioSource audioSource, int additionalPriority, bool isReleaseHitSound)
+            public AudioSourceInformation(AudioSource audioSource, int additionalPriority, bool isReleaseHitSound)
             {
                 AudioSource = audioSource;
                 AdditionalPriority = additionalPriority;
