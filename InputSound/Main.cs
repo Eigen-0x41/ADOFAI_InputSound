@@ -104,7 +104,7 @@ namespace InputSound
     }
 
     [HarmonyPatch(typeof(scrConductor))]
-    internal static class scrConductorPatch
+    internal class scrConductorPatch
     {
         [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyPostfix]
         private static void PlayHitTimesPostfix()
@@ -112,6 +112,44 @@ namespace InputSound
             if (HitSoundQueue.instance is null)
                 return;
             HitSoundQueue.instance.Clear();
+        }
+
+        public bool ReplaceTryGetValueForDictionary(HitSound key, out double value)
+        {
+            value = 0.0;
+            if (Main.settings.IsUseHitSoundOffset)
+                return ADOBase.gc.hitSoundOffsets.TryGetValue(key, out value);
+            return true;
+        }
+
+        //callvirt instance bool class [mscorlib]System.Collections.Generic.Dictionary`2<valuetype HitSound, float64>::TryGetValue(!0, !1&)
+        [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyTranspiler]
+        private static IEnumerable<CodeInstruction> PlayHitTimesTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var InjectonPoints = new CILInjectionPointFinder[]{
+                new CILInjectionPointFinder(
+                    new List<(OpCode, object)>{
+                        ValueTuple.Create<OpCode, object>(OpCodes.Callvirt, typeof(ADOBase).GetProperty("gc").PropertyType.GetField("hitSoundOffsets").FieldType.GetMethod("TryGetValue")),
+                    },
+                    (instruction) => instruction.operand = typeof(scrConductorPatch).GetMethod(nameof(ReplaceTryGetValueForDictionary))
+                    ),
+            };
+
+            foreach (var instruction in instructions)
+            {
+                foreach (var injectionPoint in InjectonPoints)
+                {
+                    if (injectionPoint.IsInjectionPoint(instruction))
+                    {
+                        injectionPoint.Injection(instruction);
+                    }
+                }
+                yield return instruction;
+            }
+
+            foreach (var injectionPoint in InjectonPoints)
+                if (!injectionPoint.IsInjected)
+                    Main.Logger.Error("scrConductor.PlayHitTimes(): Faild to transpiling.");
         }
 
         [HarmonyPatch("Update", new Type[] { }), HarmonyTranspiler]

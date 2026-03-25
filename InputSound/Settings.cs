@@ -4,7 +4,7 @@ namespace InputSound
 {
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
-        [Draw("Enable release feedback(Please adjust according to the map.)")] public bool IsEnableReleaseHitSound = false;
+        [Draw("選択用のしきい値にヒット音固有の音声オフセット値を考慮する")] public bool IsUseHitSoundOffset = false;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
