@@ -20,13 +20,21 @@ namespace InputSound
             Injectioner = action;
         }
 
+        private bool IsMatch(CodeInstruction instruction, (OpCode opcode, object operand) current)
+        {
+            bool result = instruction.opcode == current.opcode;
+            if (current.operand is null)
+                return result;
+            return result && instruction.OperandIs(current.operand);
+        }
+
         public bool IsInjectionPoint(in CodeInstruction instruction)
         {
             if (CurrentRepeatCount >= MatchInstructions.Count())
                 return false;
 
             var current = MatchInstructions[CurrentRepeatCount];
-            if (!instruction.Is(current.opcode, current.operand))
+            if (!IsMatch(instruction, current))
             {
                 CurrentRepeatCount = 0;
                 return false;

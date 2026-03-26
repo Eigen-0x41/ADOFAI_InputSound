@@ -114,24 +114,17 @@ namespace InputSound
             HitSoundQueue.instance.Clear();
         }
 
-        public bool ReplaceTryGetValueForDictionary(HitSound key, out double value)
-        {
-            value = 0.0;
-            if (Main.settings.IsUseHitSoundOffset)
-                return ADOBase.gc.hitSoundOffsets.TryGetValue(key, out value);
-            return true;
-        }
-
-        //callvirt instance bool class [mscorlib]System.Collections.Generic.Dictionary`2<valuetype HitSound, float64>::TryGetValue(!0, !1&)
         [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyTranspiler]
         private static IEnumerable<CodeInstruction> PlayHitTimesTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             var InjectonPoints = new CILInjectionPointFinder[]{
                 new CILInjectionPointFinder(
                     new List<(OpCode, object)>{
-                        ValueTuple.Create<OpCode, object>(OpCodes.Callvirt, typeof(ADOBase).GetProperty("gc").PropertyType.GetField("hitSoundOffsets").FieldType.GetMethod("TryGetValue")),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, typeof(scrFloor).Field(nameof(scrFloor.midSpin))),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Brtrue_S, null),
+                        ValueTuple.Create<OpCode, object>(OpCodes.Ldloc_2, null),
                     },
-                    (instruction) => instruction.operand = typeof(scrConductorPatch).GetMethod(nameof(ReplaceTryGetValueForDictionary))
+                    (instruction) => instruction.opcode = OpCodes.Ldc_I4_0
                     ),
             };
 
