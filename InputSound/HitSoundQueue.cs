@@ -155,18 +155,7 @@ namespace InputSound
             if (earlyValue is null)
                 return true;
             if (dspTime < averageTime)
-            {
-                if (!(scrController.instance.currFloor.nextfloor is null))
-                    if (earlyTime < (scrConductor.instance.dspTimeSongPosZero + scrController.instance.currFloor.nextfloor.entryTimePitchAdj))
-                        return false;
                 audioSourceInfomation = earlyValue;
-            }
-            else
-            {
-                if (!(scrController.instance.currFloor.nextfloor is null))
-                    if (lateTime > (scrConductor.instance.dspTimeSongPosZero + scrController.instance.currFloor.nextfloor.entryTimePitchAdj))
-                        return false;
-            }
 
             if (lateTime == earlyTime)
             {
