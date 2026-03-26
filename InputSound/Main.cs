@@ -114,10 +114,24 @@ namespace InputSound
             HitSoundQueue.instance.Clear();
         }
 
+        public bool ReplaceTryGetValueForDictionary(HitSound key, out double value)
+        {
+            value = 0.0;
+            if (Main.settings.IsUseHitSoundOffset)
+                return ADOBase.gc.hitSoundOffsets.TryGetValue(key, out value);
+            return true;
+        }
+
         [HarmonyPatch(nameof(scrConductor.PlayHitTimes), new Type[] { }), HarmonyTranspiler]
         private static IEnumerable<CodeInstruction> PlayHitTimesTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             var InjectonPoints = new CILInjectionPointFinder[]{
+                new CILInjectionPointFinder(
+                    new List<(OpCode, object)>{
+                        ValueTuple.Create<OpCode, object>(OpCodes.Callvirt, typeof(ADOBase).GetProperty("gc").PropertyType.GetField("hitSoundOffsets").FieldType.GetMethod("TryGetValue")),
+                    },
+                    (instruction) => instruction.operand = typeof(scrConductorPatch).GetMethod(nameof(ReplaceTryGetValueForDictionary))
+                    ),
                 new CILInjectionPointFinder(
                     new List<(OpCode, object)>{
                         ValueTuple.Create<OpCode, object>(OpCodes.Ldfld, typeof(scrFloor).Field(nameof(scrFloor.midSpin))),
