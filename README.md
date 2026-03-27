@@ -7,7 +7,7 @@ ADOFAIでキー入力時にヒット音を鳴らすMOD。
 
 # 使用方法
 + UnityModManagerをインストールする。
-+ [Releases](https://github.com/Eigen-0x41/ADOFAI_InputSound/releases)より**InputSound.zip**をダウンロード。
++ [Releases](https://github.com/Eigen-0x41/ADOFAI_InputSound/releases/latest)より**InputSound.zip**をダウンロード。
 + UnityModManagerを開き、**Mods**タグ内にある**Drop zip files here**にダウンロードした**InputSound.zip**をドラッグアンドドロップする。
 + ゲームを起動する。
 
