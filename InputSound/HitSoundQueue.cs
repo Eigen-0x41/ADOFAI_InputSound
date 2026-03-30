@@ -12,9 +12,7 @@ namespace InputSound
         public static HitSoundQueue instance = null;
 
         private SortedList<double, AudioSourceInformation> hitSoundBuffer = new SortedList<double, AudioSourceInformation>();
-        const long HIT_SOUND_BUFFER_BARRIER_DISABLE = 0;
-        const long HIT_SOUND_BUFFER_BARRIER_ENABLE = 1;
-        private long hitSoundBufferBarrier = HIT_SOUND_BUFFER_BARRIER_DISABLE;
+        private const double hitSoundbufferdTime = 1.0;
 
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
 
@@ -52,31 +50,31 @@ namespace InputSound
             return true;
         }
 
-        private async void ResourceReleserAsync()
+        private void HitSoundBufferRemoveHelper(double key)
         {
-            const double bufferTime = 1.0;
+            var audSrcInfo = hitSoundBuffer[key];
+            if (hitSoundBuffer.Remove(key))
+                AudioManager.Instance.liveSources.Enqueue(audSrcInfo.AudioSource, key);
+        }
 
-            double dspTime = scrConductor.instance.dspTime - bufferTime;
-            await Task.Run(() =>
-                {
-                    if (Interlocked.Exchange(ref hitSoundBufferBarrier, HIT_SOUND_BUFFER_BARRIER_ENABLE) != HIT_SOUND_BUFFER_BARRIER_DISABLE)
-                        return;
+        private void ResourceReleserAsync()
+        {
+            double dspTime = scrConductor.instance.dspTime - hitSoundbufferdTime;
 
-                    var deleteKeys = new List<double>(hitSoundBuffer.Keys);
-                    foreach (var key in deleteKeys)
-                    {
-                        if (key > dspTime)
-                            break;
-                        hitSoundBuffer.Remove(key);
-                    }
-
-                    Interlocked.Exchange(ref hitSoundBufferBarrier, HIT_SOUND_BUFFER_BARRIER_DISABLE);
-                });
+            var deleteKeys = new List<double>(hitSoundBuffer.Keys);
+            foreach (var key in deleteKeys)
+            {
+                if (key > dspTime)
+                    break;
+                HitSoundBufferRemoveHelper(key);
+            }
         }
 
         public void Clear()
         {
-            hitSoundBuffer.Clear();
+            var deleteKeys = new List<double>(hitSoundBuffer.Keys);
+            foreach (var key in deleteKeys)
+                HitSoundBufferRemoveHelper(key);
         }
 
         private bool isPreviousEnrolledHoldHitSound = false;
@@ -94,19 +92,18 @@ namespace InputSound
             if (IsDoingAddValue(time, priority, additionalPriority))
             {
 
-                var __instance = AudioManager.Instance;
+                var audMngIns = AudioManager.Instance;
 
-                audioSource = __instance.MakeSource(snd);
+                audioSource = audMngIns.MakeSource(snd);
                 audioSource.pitch = 1f;
 
                 if (!(group is null))
                     audioSource.outputAudioMixerGroup = group;
                 else
-                    audioSource.outputAudioMixerGroup = __instance.fallbackMixerGroup;
+                    audioSource.outputAudioMixerGroup = audMngIns.fallbackMixerGroup;
 
                 audioSource.volume = volume;
                 audioSource.priority = priority;
-                float num = (audioSource.clip ? audioSource.clip.length : float.PositiveInfinity);
 
                 hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority);
                 isPreviousEnrolledHoldHitSound = isHold;
