@@ -72,6 +72,24 @@ namespace InputSound
                 HitSoundBufferRemoveHelper(key);
         }
 
+        private AudioSource CreateHitSound(string snd, AudioMixerGroup group, float volume, int priority)
+        {
+            var audMngIns = AudioManager.Instance;
+
+            AudioSource audioSource = audMngIns.MakeSource(snd);
+            audioSource.pitch = 1f;
+
+            if (!(group is null))
+                audioSource.outputAudioMixerGroup = group;
+            else
+                audioSource.outputAudioMixerGroup = audMngIns.fallbackMixerGroup;
+
+            audioSource.volume = volume;
+            audioSource.priority = priority;
+
+            return audioSource;
+        }
+
         private bool isPreviousEnrolledHoldHitSound = false;
         private AudioSource EnrollHitSound(bool isHold, string snd, double time, AudioMixerGroup group, float volume, int priority)
         {
@@ -86,20 +104,7 @@ namespace InputSound
             int additionalPriority = GenAdditionalPriority(snd, priority);
             if (IsDoingAddValue(time, priority, additionalPriority))
             {
-
-                var audMngIns = AudioManager.Instance;
-
-                audioSource = audMngIns.MakeSource(snd);
-                audioSource.pitch = 1f;
-
-                if (!(group is null))
-                    audioSource.outputAudioMixerGroup = group;
-                else
-                    audioSource.outputAudioMixerGroup = audMngIns.fallbackMixerGroup;
-
-                audioSource.volume = volume;
-                audioSource.priority = priority;
-
+                audioSource = CreateHitSound(snd, group, volume, priority);
                 lock (hitSoundBufferLockObj)
                     hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority);
                 isPreviousEnrolledHoldHitSound = isHold;
