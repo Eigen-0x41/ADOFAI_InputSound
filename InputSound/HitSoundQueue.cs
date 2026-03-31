@@ -11,6 +11,7 @@ namespace InputSound
     {
         public static HitSoundQueue instance = null;
 
+        private object hitSoundBufferLockObj = new object();
         private SortedList<double, AudioSourceInformation> hitSoundBuffer = new SortedList<double, AudioSourceInformation>();
         private const double hitSoundbufferdTime = 1.0;
 
@@ -39,7 +40,10 @@ namespace InputSound
         private bool IsDoingAddValue(double time, int priority, int additionalPriority)
         {
             AudioSourceInformation audioSourceInfo = null;
-            if (hitSoundBuffer.TryGetValue(time, out audioSourceInfo))
+            bool status = false;
+            lock (hitSoundBufferLockObj)
+                status = hitSoundBuffer.TryGetValue(time, out audioSourceInfo);
+            if (status)
             {
                 if (priority != audioSourceInfo.AudioSource.priority)
                     return false;
@@ -52,9 +56,11 @@ namespace InputSound
 
         private void HitSoundBufferRemoveHelper(double key)
         {
-            var audSrcInfo = hitSoundBuffer[key];
-            if (hitSoundBuffer.Remove(key))
-                AudioManager.Instance.liveSources.Enqueue(audSrcInfo.AudioSource, key);
+            lock (hitSoundBufferLockObj)
+            {
+                AudioManager.Instance.liveSources.Enqueue(hitSoundBuffer[key].AudioSource, key);
+                hitSoundBuffer.Remove(key);
+            }
         }
 
         private void ResourceReleserAsync()
@@ -105,12 +111,14 @@ namespace InputSound
                 audioSource.volume = volume;
                 audioSource.priority = priority;
 
-                hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority);
+                lock (hitSoundBufferLockObj)
+                    hitSoundBuffer[time] = new AudioSourceInformation(audioSource, additionalPriority);
                 isPreviousEnrolledHoldHitSound = isHold;
             }
             else
             {
-                audioSource = hitSoundBuffer[time].AudioSource;
+                lock (hitSoundBufferLockObj)
+                    audioSource = hitSoundBuffer[time].AudioSource;
             }
 
             ResourceReleserAsync();
@@ -126,7 +134,9 @@ namespace InputSound
             AudioSourceInformation earlyValue = null;
             AudioSourceInformation lateValue = null;
 
-            int bufferCount = hitSoundBuffer.Count();
+            int bufferCount = 0;
+            lock (hitSoundBufferLockObj)
+                bufferCount = hitSoundBuffer.Count();
 
             if (bufferCount <= 0)
             {
@@ -136,8 +146,11 @@ namespace InputSound
 
             for (var index = 0; index < bufferCount; index++)
             {
-                lateTime = hitSoundBuffer.Keys[index];
-                lateValue = hitSoundBuffer.Values[index];
+                lock (hitSoundBufferLockObj)
+                {
+                    lateTime = hitSoundBuffer.Keys[index];
+                    lateValue = hitSoundBuffer.Values[index];
+                }
 
                 if (dspTime < lateTime)
                     break;
