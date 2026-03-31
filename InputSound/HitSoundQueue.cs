@@ -13,6 +13,7 @@ namespace InputSound
 
         private object hitSoundBufferLockObj = new object();
         private SortedList<double, AudioSourceInformation> hitSoundBuffer = new SortedList<double, AudioSourceInformation>();
+        private int hitSoundBufferCurrentIndex = 0;
         private const double hitSoundbufferdTime = 1.0;
 
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
@@ -63,21 +64,9 @@ namespace InputSound
             }
         }
 
-        private void ResourceReleserAsync()
-        {
-            double dspTime = scrConductor.instance.dspTime - hitSoundbufferdTime;
-
-            var deleteKeys = new List<double>(hitSoundBuffer.Keys);
-            foreach (var key in deleteKeys)
-            {
-                if (key > dspTime)
-                    break;
-                HitSoundBufferRemoveHelper(key);
-            }
-        }
-
         public void Clear()
         {
+            hitSoundBufferCurrentIndex = 0;
             var deleteKeys = new List<double>(hitSoundBuffer.Keys);
             foreach (var key in deleteKeys)
                 HitSoundBufferRemoveHelper(key);
@@ -121,7 +110,6 @@ namespace InputSound
                     audioSource = hitSoundBuffer[time].AudioSource;
             }
 
-            ResourceReleserAsync();
             return audioSource;
         }
 
@@ -144,12 +132,14 @@ namespace InputSound
                 return false;
             }
 
-            for (var index = 0; index < bufferCount; index++)
+            hitSoundBufferCurrentIndex -= (hitSoundBufferCurrentIndex > 1) ? hitSoundBufferCurrentIndex - 2 : 0;
+
+            for (; hitSoundBufferCurrentIndex < bufferCount; hitSoundBufferCurrentIndex++)
             {
                 lock (hitSoundBufferLockObj)
                 {
-                    lateTime = hitSoundBuffer.Keys[index];
-                    lateValue = hitSoundBuffer.Values[index];
+                    lateTime = hitSoundBuffer.Keys[hitSoundBufferCurrentIndex];
+                    lateValue = hitSoundBuffer.Values[hitSoundBufferCurrentIndex];
                 }
 
                 if (dspTime < lateTime)
