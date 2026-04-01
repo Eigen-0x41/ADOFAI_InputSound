@@ -11,6 +11,11 @@ ADOFAIでキー入力時にヒット音を鳴らすMOD。
 + UnityModManagerを開き、**Mods**タグ内にある**Drop zip files here**にダウンロードした**InputSound.zip**をドラッグアンドドロップする。
 + ゲームを起動する。
 
+# 更新方法
+UnityModMangerより使用方法と同様の方法で更新することができます。</br>
+バージョン1.2.0より"Check Updates"を押した後、</br>
+"Input Sound"を右クリックすると"Update To (バージョン番号)"という項目があれば、その項目を押すことで更新することができます。
+
 ## 無効化したい場合
 ゲーム内のUnityModManagerより</br>**On/Off**の欄で無効化してからゲームを再起動して下さい。</br>なお、v1.1.1よりゲームの再起動は必要ありません。
 
