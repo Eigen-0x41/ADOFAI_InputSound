@@ -86,7 +86,7 @@ namespace InputSound
             else
                 audioSource.outputAudioMixerGroup = audMngIns.fallbackMixerGroup;
 
-            audioSource.volume = volume;
+            audioSource.volume = Math.Max(volume, Main.settings.MinimumVolumeLimit);
             audioSource.priority = priority;
 
             return audioSource;
