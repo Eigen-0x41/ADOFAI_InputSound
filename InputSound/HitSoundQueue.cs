@@ -13,7 +13,6 @@ namespace InputSound
 
         private object hitSoundBufferLockObj = new object();
         private SortedList<double, AudioSourceInformation> hitSoundBuffer = new SortedList<double, AudioSourceInformation>();
-        private int hitSoundBufferCurrentIndex = 0;
         private const double hitSoundbufferdTime = 1.0;
 
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
@@ -68,7 +67,6 @@ namespace InputSound
 
         public void Clear()
         {
-            hitSoundBufferCurrentIndex = 0;
             var deleteKeys = new List<double>(hitSoundBuffer.Keys);
             foreach (var key in deleteKeys)
                 HitSoundBufferRemoveHelper(key);
@@ -124,38 +122,36 @@ namespace InputSound
         internal bool TryGetAudioSourceInfomation(double dspTime, out AudioSourceInformation audioSourceInfomation)
         {
             // オーバーフロー対策。
-            double lateTime = double.MinValue / 2;
-            double earlyTime = double.MaxValue / 2;
+            double lateTime = float.MinValue;
+            double earlyTime = float.MaxValue;
             AudioSourceInformation earlyValue = null;
             AudioSourceInformation lateValue = null;
 
-            int bufferCount = 0;
             lock (hitSoundBufferLockObj)
-                bufferCount = hitSoundBuffer.Count();
-
-            if (bufferCount <= 0)
             {
-                audioSourceInfomation = null;
-                return false;
-            }
-
-            hitSoundBufferCurrentIndex -= 2;
-            if (hitSoundBufferCurrentIndex <= 0)
-                hitSoundBufferCurrentIndex = 0;
-
-            for (; hitSoundBufferCurrentIndex < bufferCount; hitSoundBufferCurrentIndex++)
-            {
-                lock (hitSoundBufferLockObj)
+                if (hitSoundBuffer.Count() <= 0)
                 {
-                    lateTime = hitSoundBuffer.Keys[hitSoundBufferCurrentIndex];
-                    lateValue = hitSoundBuffer.Values[hitSoundBufferCurrentIndex];
+                    audioSourceInfomation = null;
+                    return false;
                 }
 
-                if (dspTime < lateTime)
-                    break;
+                var deleteKeys = new List<double>();
+                foreach (var keyValuePair in hitSoundBuffer)
+                {
+                    lateTime = keyValuePair.Key;
+                    lateValue = keyValuePair.Value;
 
-                earlyTime = lateTime;
-                earlyValue = lateValue;
+                    if (dspTime < lateTime)
+                        break;
+
+                    deleteKeys.Add(earlyTime);
+
+                    earlyTime = lateTime;
+                    earlyValue = lateValue;
+                }
+
+                for (var i = 1; i < deleteKeys.Count; i++)
+                    HitSoundBufferRemoveHelper(deleteKeys[i]);
             }
 
             audioSourceInfomation = lateValue;
