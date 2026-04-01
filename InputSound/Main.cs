@@ -112,6 +112,7 @@ namespace InputSound
             if (HitSoundQueue.instance is null)
                 return;
             HitSoundQueue.instance.Clear();
+            HitSoundQueue.instance.UpdateOverrideHitSound(Main.settings.OverrideHitSoundType);
         }
 
         public bool ReplaceTryGetValueForDictionary(HitSound key, out double value)
@@ -173,7 +174,7 @@ namespace InputSound
                         ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
                         ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
                     },
-                    (instruction) => instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HoldSoundEnroller))
+                    (instruction) => instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HoldSoundEnrollHelper))
                     ),
                 new CILInjectionPointFinder(
                     new List<(OpCode, object)>{
@@ -181,7 +182,7 @@ namespace InputSound
                         ValueTuple.Create<OpCode, object>(OpCodes.Ldc_I4, 128),
                         ValueTuple.Create<OpCode, object>(OpCodes.Call, typeof(AudioManager).Method(nameof(AudioManager.Play))),
                     },
-                    (instruction) => instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnroller))
+                    (instruction) => instruction.operand = typeof(HitSoundQueue).Method(nameof(HitSoundQueue.HitSoundEnrollHelper))
                     ),
             };
 

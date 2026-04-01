@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -17,6 +17,8 @@ namespace InputSound
         private const double hitSoundbufferdTime = 1.0;
 
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
+
+        private AudioSourceInformation OverrideHitSound = null;
 
         private int GenAdditionalPriority(string snd, int priority)
         {
@@ -59,7 +61,7 @@ namespace InputSound
         {
             lock (hitSoundBufferLockObj)
             {
-                AudioManager.Instance.liveSources.Enqueue(hitSoundBuffer[key].AudioSource, key);
+                hitSoundBuffer[key].Dispose();
                 hitSoundBuffer.Remove(key);
             }
         }
@@ -137,7 +139,9 @@ namespace InputSound
                 return false;
             }
 
-            hitSoundBufferCurrentIndex -= (hitSoundBufferCurrentIndex > 1) ? hitSoundBufferCurrentIndex - 2 : 0;
+            hitSoundBufferCurrentIndex -= 2;
+            if (hitSoundBufferCurrentIndex <= 0)
+                hitSoundBufferCurrentIndex = 0;
 
             for (; hitSoundBufferCurrentIndex < bufferCount; hitSoundBufferCurrentIndex++)
             {
@@ -177,13 +181,23 @@ namespace InputSound
 
         public async void PlayHitSoundAsync(bool isReleased, Task<bool> isExecuteLazy)
         {
-            // もし落ちるようならここにtry-catch文でデバックする。
+            if (isReleased)
+                return;
+
             var scrCondIns = scrConductor.instance;
             if (scrCondIns is null)
                 return;
-            if (!TryGetAudioSourceInfomation(scrCondIns.dspTime, out AudioSourceInformation audSrcInfo))
+
+            if (Main.settings.IsOverrideHitSound)
+            {
+                OverrideHitSound.AudioSource.volume = scrCondIns.hitSoundVolume;
+                if (await isExecuteLazy)
+                    OverrideHitSound.AudioSource.Play();
                 return;
-            if (isReleased)
+            }
+
+            // もし落ちるようならここにtry-catch文でデバックする。
+            if (!TryGetAudioSourceInfomation(scrCondIns.dspTime, out AudioSourceInformation audSrcInfo))
                 return;
             if (audSrcInfo.AudioSource is null)
                 return;
@@ -192,7 +206,16 @@ namespace InputSound
                 audSrcInfo.AudioSource.Play();
         }
 
-        public static AudioSource HoldSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
+        public bool UpdateOverrideHitSound(HitSound hitSound)
+        {
+            if (!(OverrideHitSound is null))
+                OverrideHitSound.Dispose();
+
+            OverrideHitSound = new AudioSourceInformation(CreateHitSound("snd" + hitSound, null, 1.0f, 128), 0);
+            return true;
+        }
+
+        public static AudioSource HoldSoundEnrollHelper(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
         {
             if (!Main.IsEnabled)
                 return AudioManager.Play(snd, time, group, volume, priority);
@@ -203,7 +226,7 @@ namespace InputSound
             return instance.EnrollHitSound(true, snd, time, group, volume, priority);
         }
 
-        public static AudioSource HitSoundEnroller(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
+        public static AudioSource HitSoundEnrollHelper(string snd, double time, AudioMixerGroup group, float volume = 1, int priority = 128)
         {
             if (!Main.IsEnabled)
                 return AudioManager.Play(snd, time, group, volume, priority);
@@ -213,7 +236,6 @@ namespace InputSound
 
             return instance.EnrollHitSound(false, snd, time, group, volume, priority);
         }
-
 
         private sealed class PriorityBuffer
         {
@@ -227,8 +249,9 @@ namespace InputSound
             }
         }
 
-        internal sealed class AudioSourceInformation
+        internal sealed class AudioSourceInformation : IDisposable
         {
+            private bool isDispose = false;
             public AudioSource AudioSource = null;
             public int AdditionalPriority = 0;
 
@@ -236,6 +259,16 @@ namespace InputSound
             {
                 AudioSource = audioSource;
                 AdditionalPriority = additionalPriority;
+            }
+
+            public void Dispose()
+            {
+                if (isDispose)
+                    return;
+                isDispose = true;
+                if (AudioSource is null)
+                    return;
+                AudioManager.Instance.liveSources.Enqueue(AudioSource, 0);
             }
         }
     }
