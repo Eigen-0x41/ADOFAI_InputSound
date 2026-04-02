@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/ソリューション項目/">
     <File Path="LICENSE" />
+    <File Path="PreReleaseInformation.json" />
     <File Path="README.md" />
     <File Path="ReleaseInformation.json" />
   </Folder>
