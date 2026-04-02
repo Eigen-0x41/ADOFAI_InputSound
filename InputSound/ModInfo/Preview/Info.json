@@ -1,0 +1,14 @@
+{
+  "Id": "InputSound",
+  "DisplayName": "Input Sound",
+  "Author": "Eigen",
+  "Version": "1.2.2-pre",
+  "ManagerVersion": "0.32.4",
+  "GameVersion": "2.9.7",
+  "Requirements": [],
+  "LoadAfter": [],
+  "AssemblyName": "InputSound.dll",
+  "EntryMethod": "InputSound.Main.Load",
+  "HomePage": "https://github.com/Eigen-0x41/ADOFAI_InputSound",
+  "Repository": "https://raw.githubusercontent.com/Eigen-0x41/ADOFAI_InputSound/refs/heads/main/PreReleaseInformation.json"
+}
