@@ -112,6 +112,7 @@ namespace InputSound
             if (HitSoundQueue.instance is null)
                 return;
             HitSoundQueue.instance.Clear();
+            HitSoundQueue.instance.UpdateHitSoundPlayer();
             HitSoundQueue.instance.UpdateOverrideHitSound(Main.settings.OverrideHitSoundType);
         }
 

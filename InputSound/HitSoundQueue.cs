@@ -19,6 +19,7 @@ namespace InputSound
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
 
         private AudioSourceInformation OverrideHitSound = null;
+        private AudioSourcePlayer HitSoundPlayer = null;
 
         private int GenAdditionalPriority(string snd, int priority)
         {
@@ -192,7 +193,7 @@ namespace InputSound
             {
                 OverrideHitSound.AudioSource.volume = scrCondIns.hitSoundVolume;
                 if (await isExecuteLazy)
-                    OverrideHitSound.AudioSource.Play();
+                    HitSoundPlayer.Play(OverrideHitSound.AudioSource);
                 return;
             }
 
@@ -201,9 +202,11 @@ namespace InputSound
                 return;
             if (audSrcInfo.AudioSource is null)
                 return;
+            if (HitSoundPlayer is null)
+                return;
 
             if (await isExecuteLazy)
-                audSrcInfo.AudioSource.Play();
+                HitSoundPlayer.Play(audSrcInfo.AudioSource);
         }
 
         public bool UpdateOverrideHitSound(HitSound hitSound)
@@ -212,6 +215,14 @@ namespace InputSound
                 OverrideHitSound.Dispose();
 
             OverrideHitSound = new AudioSourceInformation(CreateHitSound("snd" + hitSound, null, 1.0f, 128), 0);
+            return true;
+        }
+        public bool UpdateHitSoundPlayer()
+        {
+            if (!(HitSoundPlayer is null))
+                HitSoundPlayer.Dispose();
+            HitSoundPlayer = new AudioSourcePlayer(CreateHitSound("snd" + HitSound.None, null, 1.0f, 128));
+
             return true;
         }
 
@@ -249,17 +260,10 @@ namespace InputSound
             }
         }
 
-        internal sealed class AudioSourceInformation : IDisposable
+        internal abstract class AudioSourceDisposableAbstruct : IDisposable
         {
             private bool isDispose = false;
             public AudioSource AudioSource = null;
-            public int AdditionalPriority = 0;
-
-            public AudioSourceInformation(AudioSource audioSource, int additionalPriority)
-            {
-                AudioSource = audioSource;
-                AdditionalPriority = additionalPriority;
-            }
 
             public void Dispose()
             {
@@ -269,6 +273,29 @@ namespace InputSound
                 if (AudioSource is null)
                     return;
                 AudioManager.Instance.liveSources.Enqueue(AudioSource, 0);
+            }
+        }
+
+        internal sealed class AudioSourceInformation : AudioSourceDisposableAbstruct
+        {
+            public int AdditionalPriority = 0;
+
+            public AudioSourceInformation(AudioSource audioSource, int additionalPriority)
+            {
+                AudioSource = audioSource;
+                AdditionalPriority = additionalPriority;
+            }
+        }
+        internal sealed class AudioSourcePlayer : AudioSourceDisposableAbstruct
+        {
+            public AudioSourcePlayer(AudioSource audioSource)
+            {
+                AudioSource = audioSource;
+            }
+
+            public void Play(AudioSource hitSound)
+            {
+                AudioSource.PlayOneShot(hitSound.clip, hitSound.volume);
             }
         }
     }
