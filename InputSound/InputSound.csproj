@@ -92,17 +92,27 @@
     <Compile Include="Settings.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Info.json">
+    <None Include="ModInfo\Develop\Info.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="ModInfo\Preview\Info.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="ModInfo\Info.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>if $(ConfigurationName) == Debug (
-start XCOPY /Y /R "$(TargetDir)\Info.json" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\Info.json"
-
-start XCOPY /Y /R "$(TargetDir)\$(TargetFileName)" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\$(TargetFileName)"
+  start XCOPY /Y /R "$(TargetDir)\ModInfo\Develop\Info.json" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\Info.json"
+  start XCOPY /Y /R "$(TargetDir)\$(TargetFileName)" "F:\Game\SteamLibrary\steamapps\common\A Dance of Fire and Ice\Mods\$(ProjectName)\$(TargetFileName)"
 )
-start powershell compress-archive -force "$(TargetDir)\Info.json","$(TargetDir)\$(TargetFileName)",$(SolutionDir)\LICENSE InputSound.zip</PostBuildEvent>
+
+if $(ConfigurationName) == Release (
+  powershell compress-archive -force "$(TargetDir)\ModInfo\Info.json","$(TargetDir)\$(TargetFileName)","$(SolutionDir)\LICENSE" InputSound.zip
+  powershell compress-archive -force "$(TargetDir)\ModInfo\Preview\Info.json","$(TargetDir)\$(TargetFileName)","$(SolutionDir)\LICENSE" InputSound_pre.zip
+)</PostBuildEvent>
   </PropertyGroup>
 </Project>

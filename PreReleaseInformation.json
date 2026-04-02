@@ -1,0 +1,9 @@
+{
+  "Releases": [
+    {
+      "Id": "InputSound",
+      "Version": "1.2.2",
+      "DownloadUrl": "https://github.com/Eigen-0x41/ADOFAI_InputSound/releases/download/1.2.2/InputSound.zip"
+    }
+  ]
+}
