@@ -18,8 +18,8 @@ namespace InputSound
 
         private PriorityBuffer[] adaptivePriority = new PriorityBuffer[4] { new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer(), new PriorityBuffer() };
 
-        private AudioSourceInformation OverrideHitSound = null;
-        private AudioSourcePlayer HitSoundPlayer = null;
+        private AudioSourceInformation overrideHitSound = null;
+        private AudioSource hitSoundSubstiuterSource = null;
 
         private int GenAdditionalPriority(string snd, int priority)
         {
@@ -191,9 +191,9 @@ namespace InputSound
 
             if (Main.settings.IsOverrideHitSound)
             {
-                OverrideHitSound.AudioSource.volume = scrCondIns.hitSoundVolume;
+                overrideHitSound.AudioSource.volume = scrCondIns.hitSoundVolume;
                 if (await isExecuteLazy)
-                    HitSoundPlayer.Play(OverrideHitSound.AudioSource);
+                    overrideHitSound.PlayBySubstitute(hitSoundSubstiuterSource);
                 return;
             }
 
@@ -202,26 +202,24 @@ namespace InputSound
                 return;
             if (audSrcInfo.AudioSource is null)
                 return;
-            if (HitSoundPlayer is null)
-                return;
 
             if (await isExecuteLazy)
-                HitSoundPlayer.Play(audSrcInfo.AudioSource);
+                audSrcInfo.PlayBySubstitute(hitSoundSubstiuterSource);
         }
 
         public bool UpdateOverrideHitSound(HitSound hitSound)
         {
-            if (!(OverrideHitSound is null))
-                OverrideHitSound.Dispose();
+            if (!(overrideHitSound is null))
+                overrideHitSound.Dispose();
 
-            OverrideHitSound = new AudioSourceInformation(CreateHitSound("snd" + hitSound, null, 1.0f, 128), 0);
+            overrideHitSound = new AudioSourceInformation(CreateHitSound("snd" + hitSound, scrConductor.instance.hitSoundGroup, 1.0f, 128), 0);
             return true;
         }
         public bool UpdateHitSoundPlayer()
         {
-            if (!(HitSoundPlayer is null))
-                HitSoundPlayer.Dispose();
-            HitSoundPlayer = new AudioSourcePlayer(CreateHitSound("snd" + HitSound.None, null, 1.0f, 128));
+            if (!(hitSoundSubstiuterSource is null))
+                AudioManager.Instance.liveSources.Enqueue(hitSoundSubstiuterSource, 0);
+            hitSoundSubstiuterSource = CreateHitSound("snd" + HitSound.None, scrConductor.instance.hitSoundGroup, 1.0f, 128);
 
             return true;
         }
@@ -260,10 +258,19 @@ namespace InputSound
             }
         }
 
-        internal abstract class AudioSourceDisposableAbstruct : IDisposable
+        internal sealed class AudioSourceInformation : IDisposable
         {
             private bool isDispose = false;
             public AudioSource AudioSource = null;
+            public int AdditionalPriority = 0;
+
+            public AudioSourceInformation(AudioSource audioSource, int additionalPriority)
+            {
+                AudioSource = audioSource;
+                AdditionalPriority = additionalPriority;
+            }
+
+            public void PlayBySubstitute(AudioSource substitute) => substitute.PlayOneShot(AudioSource.clip, AudioSource.volume);
 
             public void Dispose()
             {
@@ -273,29 +280,6 @@ namespace InputSound
                 if (AudioSource is null)
                     return;
                 AudioManager.Instance.liveSources.Enqueue(AudioSource, 0);
-            }
-        }
-
-        internal sealed class AudioSourceInformation : AudioSourceDisposableAbstruct
-        {
-            public int AdditionalPriority = 0;
-
-            public AudioSourceInformation(AudioSource audioSource, int additionalPriority)
-            {
-                AudioSource = audioSource;
-                AdditionalPriority = additionalPriority;
-            }
-        }
-        internal sealed class AudioSourcePlayer : AudioSourceDisposableAbstruct
-        {
-            public AudioSourcePlayer(AudioSource audioSource)
-            {
-                AudioSource = audioSource;
-            }
-
-            public void Play(AudioSource hitSound)
-            {
-                AudioSource.PlayOneShot(hitSound.clip, hitSound.volume);
             }
         }
     }
