@@ -193,7 +193,7 @@ namespace InputSound
             {
                 overrideHitSound.AudioSource.volume = scrCondIns.hitSoundVolume;
                 if (await isExecuteLazy)
-                    overrideHitSound.PlayBySubstitute(hitSoundSubstiuterSource);
+                    overrideHitSound.PlayOrPlayBySubstitute(hitSoundSubstiuterSource);
                 return;
             }
 
@@ -204,7 +204,7 @@ namespace InputSound
                 return;
 
             if (await isExecuteLazy)
-                audSrcInfo.PlayBySubstitute(hitSoundSubstiuterSource);
+                audSrcInfo.PlayOrPlayBySubstitute(hitSoundSubstiuterSource);
         }
 
         public bool UpdateOverrideHitSound(HitSound hitSound)
@@ -270,7 +270,15 @@ namespace InputSound
                 AdditionalPriority = additionalPriority;
             }
 
-            public void PlayBySubstitute(AudioSource substitute) => substitute.PlayOneShot(AudioSource.clip, AudioSource.volume);
+            public void PlayOrPlayBySubstitute(AudioSource substitute)
+            {
+                if (Main.settings.IsUseSubstitute)
+                {
+                    substitute.PlayOneShot(AudioSource.clip, AudioSource.volume);
+                    return;
+                }
+                AudioSource.Play();
+            }
 
             public void Dispose()
             {

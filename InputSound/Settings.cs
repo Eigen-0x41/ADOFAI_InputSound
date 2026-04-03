@@ -4,6 +4,7 @@ namespace InputSound
 {
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
+        [Draw("連打時に落ちにくくする")] public bool IsUseSubstitute = false;
         [Draw("選択用のしきい値にヒット音固有の音声オフセット値を考慮する")] public bool IsUseHitSoundOffset = false;
         [Draw("ヒットサウンドの最小値(0.0~1.0)")] public float MinimumVolumeLimit = 0.0f;
         [Draw("常に特定のヒットサウンドを鳴らす")] public bool IsOverrideHitSound = false;
